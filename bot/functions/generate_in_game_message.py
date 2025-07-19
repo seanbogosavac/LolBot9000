@@ -1,13 +1,13 @@
 from config import CHAMPIONS
 
-def generate_in_game_message(player_data, current_match):
+def generate_in_game_message(player_info, current_match):
     champion = "un champion inconnu"
     puuid = None
 
     # Defensive: get puuid from current_match's players list if available
     if 'players' in current_match and 'champions' in current_match:
         try:
-            mention = f"<@{int(player_data['discord_id'])}>"
+            mention = f"<@{int(player_info['discord_id'])}>"
             if puuid in current_match['players']:
                 champ_id = current_match['champions'][current_match['players'].index(puuid)]
                 champion = CHAMPIONS.get(champ_id, "un champion inconnu")

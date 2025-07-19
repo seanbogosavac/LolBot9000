@@ -1,8 +1,8 @@
-from riot_api.client import get_player_info, get_last_match_id, get_match_data
+from riot_api.client import get_match_data, get_player_info, get_last_match_id
 from config import PLAYERS, API_KEY
 from .bot_instance import bot
-from .functions.generate_match_embed import generate_match_embed
-from .functions.generate_kda_message import generate_kda_message
+from .functions.generate_match_info_response import generate_match_info_response
+from .functions.get_targeted_player_info import get_targeted_player_info
 
 
 @bot.command()
@@ -47,48 +47,24 @@ async def lol(ctx, target=None):
 
 @bot.command()
 async def lastgame(ctx, target=None):
+    # Check if there is a target
     if target is None:
         await ctx.send("Oh tu veux les infos de qui ? Dis les termes là !")
         return
 
-    player_name = None
-
-    if len(ctx.message.mentions) > 0:
-        discord_id = str(ctx.message.mentions[0].id)
-
-        for name, data in PLAYERS.items():
-            if data["discord_id"] == discord_id:
-                player_name = name
-                break
-    else:
-        player_name = target.lower()
-
-    if player_name not in PLAYERS:
+    # Gathers data about the targeted player
+    player_info = await get_targeted_player_info(ctx, target)
+    if not player_info:
         await ctx.send("C'est qui frère ?")
         return
 
     try:
-        # Gather data about the player's last match
-        player = PLAYERS[player_name]
-        last_match_id = get_last_match_id(player['puuid'], API_KEY)
+        # Fetch data of the last match played
+        last_match_id = get_last_match_id(player_info['puuid'], API_KEY)
         last_match_data = get_match_data(last_match_id, API_KEY)
-        if not last_match_data:
-            await ctx.send("J'ai pas de données pour ce guy")
-            return
-        
-        # Find the participant data for the requested player
-        player_data = None
-        for p in last_match_data['participants']:
-            if p['puuid'] == player['puuid']:
-                player_data = p
-                break
-        if not player_data:
-            await ctx.send("Aaaaaaaaaaah je te trouve pas dans le match")
-            return
 
-        # Generate and send the match data
-        message = generate_kda_message(player_data, player['discord_id'])
-        embed = generate_match_embed(player_name, last_match_data, player['puuid'])
+        # Generates response
+        message, embed = generate_match_info_response(player_info, last_match_data)
         await ctx.send(
             content=message,
             embed=embed
