@@ -1,5 +1,5 @@
-from riot_api.client import get_player_info, get_current_match, get_last_match
-from config import API_KEY, PLAYERS
+from riot_api.client import get_match_data
+from config import API_KEY
 
-info_maxime = get_last_match(PLAYERS["sean"]['puuid'], API_KEY)
+info_maxime = get_match_data('EUW1_7465491302', API_KEY)
 print(info_maxime)
