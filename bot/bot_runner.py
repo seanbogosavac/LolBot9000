@@ -1,6 +1,5 @@
 from .bot_instance import bot
 from .loops import check_players_in_game
-import os
 
 
 @bot.event
