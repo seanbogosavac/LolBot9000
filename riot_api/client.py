@@ -22,8 +22,7 @@ def get_current_match(puuid, api_key):
     if response.status_code == 200:
         match_info = response.json()
         return_info = {"gameId": match_info['gameId'],
-                       "gameMode": match_info['gameMode'],
-                       "gameType": match_info['gameType'],
+                       "gameType": match_info['gameQueueConfigId'],
                        "players": [p['puuid'] for p in match_info['participants']],
                        "champions": [p['championId'] for p in match_info['participants']]}
         return return_info
