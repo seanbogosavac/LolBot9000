@@ -10,4 +10,5 @@ PUUID = {"sean": os.getenv("ID_SEAN"),
          "thomas": os.getenv("ID_THOMAS"),
          "yannis": os.getenv("ID_YANNIS")}
 
-get_player_info(PUUID["maxime"], API_KEY)
+info_maxime = get_player_info(PUUID["maxime"], API_KEY)
+print(info_maxime)
