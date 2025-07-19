@@ -28,6 +28,14 @@ PLAYERS = {
     }
 }
 
+QUEUE_NAMES = {
+    400: "Normal Draft",
+    420: "Ranked Solo/Duo",
+    440: "Ranked Flex",
+    450: "ARAM",
+    430: "Normal Blind Pick",
+}
+
 CHAMPIONS = {}
 for champ_name, champ_info in champions_data['data'].items():
     champ_id = int(champ_info['key'])
