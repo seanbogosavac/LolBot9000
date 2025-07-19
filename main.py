@@ -7,7 +7,6 @@ from discord.ext import commands
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 API_KEY = os.getenv("RIOT_API_KEY")
-REGION = os.getenv("REGION")
 PUUID = {"sean": os.getenv("ID_SEAN"),
          "maxime": os.getenv("ID_MAXIME"),
          "thomas": os.getenv("ID_THOMAS"),
