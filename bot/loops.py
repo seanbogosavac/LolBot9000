@@ -1,13 +1,14 @@
 from discord.ext import tasks
 from config import PLAYERS, API_KEY, DISCORD_CHANNEL
 from .bot_instance import bot
-from .functions import generate_in_game_message, generate_match_info_response
+from .functions.generate_in_game_message import generate_in_game_message
+from .functions.generate_match_info_response import generate_match_info_response
 from riot_api.client import get_current_match, get_match_data
 
 ongoing_matches = {}
 
 
-@tasks.loop(seconds=60)
+@tasks.loop(seconds=15)
 async def check_players_in_game():
     # Get the channel
     channel = bot.get_channel(DISCORD_CHANNEL)

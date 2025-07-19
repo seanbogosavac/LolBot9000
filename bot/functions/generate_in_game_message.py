@@ -1,20 +1,19 @@
 from config import CHAMPIONS
 
-def generate_in_game_message(player_info, current_match):
+def generate_in_game_message(player_info, match_data):
     champion = "un champion inconnu"
     puuid = None
 
-    # Defensive: get puuid from current_match's players list if available
-    if 'players' in current_match and 'champions' in current_match:
+    if 'players' in match_data and 'champions' in match_data:
         try:
             mention = f"<@{int(player_info['discord_id'])}>"
-            if puuid in current_match['players']:
-                champ_id = current_match['champions'][current_match['players'].index(puuid)]
+            if puuid in match_data['players']:
+                champ_id = match_data['champions'][match_data['players'].index(puuid)]
                 champion = CHAMPIONS.get(champ_id, "un champion inconnu")
         except Exception:
             pass
 
-    game_type = current_match.get("gameType", "")
+    game_type = match_data.get("gameType", "")
     if game_type == '400':
         return f"{mention} remet les crampons pour une nouvelle game avec **{champion}**"
     elif game_type == '420':
