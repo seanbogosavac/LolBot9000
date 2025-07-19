@@ -1,7 +1,9 @@
-from discord.ext import commands
-from riot_api.client import get_player_info
+from riot_api.client import get_match_data, get_player_info, get_last_match_id
 from config import PLAYERS, API_KEY
 from .bot_instance import bot
+from .functions.generate_match_info_response import generate_match_info_response
+from .functions.get_targeted_player_info import get_targeted_player_info
+
 
 @bot.command()
 async def lol(ctx, target=None):
@@ -26,20 +28,47 @@ async def lol(ctx, target=None):
         return
 
     try:
-        info = get_player_info(PLAYERS[player_name]['puuid'], API_KEY)
+        # Gather data about the player
+        player = PLAYERS[player_name]
+        info = get_player_info(player['puuid'], API_KEY)
         rank = info.get("rank", "")
         winrate = info.get("winrate", "")
 
-        mention = f"<@{int(PLAYERS[player_name]['discord_id'])}>"
-        message = ""
-        if winrate > 50:
-            message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, énorme sexe\n"
-        else:
-            message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, le gros nullos\n"
-
+        # Generate a message and send it
+        mention = f"<@{int(player['discord_id'])}>"
+        message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, {'énorme sexe' if winrate > 50 else 'le gros nullos'}\n"
         await ctx.send(message)
     except IndexError:
         await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
+    except Exception as e:
+        print(f"Error fetching info for {target}: {e}")
+        await ctx.send("G beugé chef")
+
+
+@bot.command()
+async def lastgame(ctx, target=None):
+    # Check if there is a target
+    if target is None:
+        await ctx.send("Oh tu veux les infos de qui ? Dis les termes là !")
+        return
+
+    # Gathers data about the targeted player
+    player_info = await get_targeted_player_info(ctx, target)
+    if not player_info:
+        await ctx.send("C'est qui frère ?")
+        return
+
+    try:
+        # Fetch data of the last match played
+        last_match_id = get_last_match_id(player_info['puuid'], API_KEY)
+        last_match_data = get_match_data(last_match_id, API_KEY)
+
+        # Generates response
+        message, embed = generate_match_info_response(player_info, last_match_data)
+        await ctx.send(
+            content=message,
+            embed=embed
+            )
     except Exception as e:
         print(f"Error fetching info for {target}: {e}")
         await ctx.send("G beugé chef")
