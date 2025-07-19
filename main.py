@@ -7,12 +7,24 @@ from discord.ext import commands
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 API_KEY = os.getenv("RIOT_API_KEY")
-PUUID = {"sean": os.getenv("ID_SEAN"),
-         "maxime": os.getenv("ID_MAXIME"),
-         "thomas": os.getenv("ID_THOMAS"),
-         "yannis": os.getenv("ID_YANNIS")}
-
-#infomax = get_player_info(PUUID["maxime"], API_KEY)
+PLAYERS = {
+    "sean": {
+        "puuid": os.getenv("RIOT_ID_SEAN"),
+        "discord_id": os.getenv("DISCORD_ID_SEAN")
+    },
+    "maxime": {
+        "puuid": os.getenv("RIOT_ID_MAXIME"),
+        "discord_id": os.getenv("DISCORD_ID_MAXIME")
+    },
+    "thomas": {
+        "puuid": os.getenv("RIOT_ID_THOMAS"),
+        "discord_id": os.getenv("DISCORD_ID_THOMAS")
+    },
+    "yannis": {
+        "puuid": os.getenv("RIOT_ID_YANNIS"),
+        "discord_id": os.getenv("DISCORD_ID_YANNIS")
+    }
+}
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -24,28 +36,46 @@ async def on_ready():
     print("LolBot9000 up and running")
 
 @bot.command()
-async def lol(ctx, summoner_name: str):
-    summoner_name = summoner_name.lower()
-    if summoner_name not in PUUID:
-        await ctx.send(f"❌ Player '{summoner_name}' not found.")
+async def lol(ctx, target):
+    if target is None:
+        await ctx.send("Oh tu veux les infos de qui ? Dis les termes là !")
         return
 
-    puuid = PUUID[summoner_name]
-    try:
-        info = get_player_info(puuid, API_KEY)
-        # You can adjust this part based on the structure of `info`
-        rank = info.get("rank", "Unknown")
-        tier = info.get("tier", "")
-        lp = info.get("leaguePoints", 0)
-        wins = info.get("wins", 0)
-        losses = info.get("losses", 0)
+    player_name = None
 
-        await ctx.send(
-            f"📊 **{summoner_name.capitalize()}** is ranked **{tier} {rank}** with **{lp} LP**.\n"
-            f"✅ {wins} Wins | ❌ {losses} Losses"
-        )
+    # Check if the target is a mention
+    if len(ctx.message.mentions) > 0:
+        discord_id = str(ctx.message.mentions[0].id)
+
+        for name, data in PLAYERS.items():
+            if data["discord_id"] == discord_id:
+                player_name = name
+                break
+    else:
+        player_name = target.lower()
+
+
+    if player_name not in PLAYERS:
+        await ctx.send("C'est qui frère ?")
+        return
+
+    try:
+        info = get_player_info(PLAYERS[player_name]['puuid'], API_KEY)
+        rank = info.get("rank", "")
+        winrate = info.get("winrate", "")
+
+        mention = f"<@{int(PLAYERS[player_name]["discord_id"])}>"
+        message = ""
+        if winrate > 50:
+            message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, énorme sexe\n"
+        else:
+            message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, le gros nullos\n"
+
+        await ctx.send(message)
+    except IndexError:
+        await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
     except Exception as e:
-        print(f"Error fetching info for {summoner_name}: {e}")
-        await ctx.send("⚠️ Failed to fetch player info.")
+        print(f"Error fetching info for {target}: {e}")
+        await ctx.send("G beugé chef")
 
 bot.run(DISCORD_TOKEN)
