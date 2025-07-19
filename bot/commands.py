@@ -26,11 +26,12 @@ async def lol(ctx, target=None):
         return
 
     try:
-        info = get_player_info(PLAYERS[player_name]['puuid'], API_KEY)
+        player = PLAYERS[player_name]
+        info = get_player_info(player['puuid'], API_KEY)
         rank = info.get("rank", "")
         winrate = info.get("winrate", "")
 
-        mention = f"<@{int(PLAYERS[player_name]['discord_id'])}>"
+        mention = f"<@{int(player['discord_id'])}>"
         message = ""
         if winrate > 50:
             message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, énorme sexe\n"

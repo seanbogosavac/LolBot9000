@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DISCORD_CHANNEL = os.getenv("DISCORD_CHANNEL")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 API_KEY = os.getenv("RIOT_API_KEY")
 
