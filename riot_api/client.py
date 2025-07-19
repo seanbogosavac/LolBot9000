@@ -1,7 +1,7 @@
 import requests
 
 def get_player_info(puuid, api_key):
-    # RATE LIMIT 20000/10sec 1200000/10min
+    # RATE LIMIT 20000/10sec
     URL = "https://euw1.api.riotgames.com/lol/league/v4/entries/by-puuid/" + puuid + "?api_key=" + api_key
     response = requests.get(URL)
 
@@ -17,7 +17,7 @@ def get_player_info(puuid, api_key):
 
 
 def get_current_match(puuid, api_key):
-    # RATE LIMIT 20000/10sec 1200000/10min
+    # RATE LIMIT 20000/10sec
     URL = "https://euw1.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/" + puuid + "?api_key=" + api_key
     response = requests.get(URL)
 
