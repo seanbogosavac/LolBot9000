@@ -1,7 +1,7 @@
 import discord
 from config import QUEUE_NAMES
 
-def format_match_embed(player_name, match_data, player_puuid):
+def generate_match_embed(player_name, match_data, player_puuid):
     queue_name = QUEUE_NAMES.get(match_data['gameType'], f"Queue {match_data['gameType']}")
     duration = match_data['duration']
 

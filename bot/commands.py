@@ -1,8 +1,9 @@
-from discord.ext import commands
 from riot_api.client import get_player_info, get_last_match_id, get_match_data
 from config import PLAYERS, API_KEY
 from .bot_instance import bot
-from .functions import format_match_embed
+from .functions.generate_match_embed import generate_match_embed
+from .functions.generate_kda_message import generate_kda_message
+
 
 @bot.command()
 async def lol(ctx, target=None):
@@ -27,18 +28,15 @@ async def lol(ctx, target=None):
         return
 
     try:
+        # Gather data about the player
         player = PLAYERS[player_name]
         info = get_player_info(player['puuid'], API_KEY)
         rank = info.get("rank", "")
         winrate = info.get("winrate", "")
 
+        # Generate a message and send it
         mention = f"<@{int(player['discord_id'])}>"
-        message = ""
-        if winrate > 50:
-            message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, énorme sexe\n"
-        else:
-            message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, le gros nullos\n"
-
+        message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, {'énorme sexe' if winrate > 50 else 'le gros nullos'}\n"
         await ctx.send(message)
     except IndexError:
         await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
@@ -70,6 +68,7 @@ async def lastgame(ctx, target=None):
         return
 
     try:
+        # Gather data about the player's last match
         player = PLAYERS[player_name]
         last_match_id = get_last_match_id(player['puuid'], API_KEY)
         last_match_data = get_match_data(last_match_id, API_KEY)
@@ -87,27 +86,9 @@ async def lastgame(ctx, target=None):
             await ctx.send("Aaaaaaaaaaah je te trouve pas dans le match")
             return
 
-        message = ""
-        mention = f"<@{int(player['discord_id'])}>"
-
-        player_kda = (player_data['kills'] + player_data['assists']) / player_data['deaths']
-        if player_data['win'] == True:
-            if player_kda > 5:
-                message = f"**{mention}** a retourné l'équipe adverse avec un KDA aussi gros que son sexe\n"
-            if player_kda < 0.5:
-                message = f"**{mention}** a gagné sa dernière game mais vu ses stats c'est pas graçe à lui, bref...\n"
-            else:
-                message = f"**{mention}** a gagné sa dernière game\n"
-        elif player_data['win'] == False:
-            if player_kda > 5:
-                message = f"**{mention}** t'a perdu ta dernière game mais nonobstant tu restes le goat\n"
-            if player_kda < 0.5:
-                message = f"**{mention}** essaie de mieux jouer la prochaine fois nan ? Histoire de pas faire perdre 40 min a tes mates ?\n"
-            else:
-                message = f"**{mention}** a perdu sa dernière game\n"
-
-        
-        embed = format_match_embed(player_name, last_match_data, player['puuid'])
+        # Generate and send the match data
+        message = generate_kda_message(player_data, player['discord_id'])
+        embed = generate_match_embed(player_name, last_match_data, player['puuid'])
         await ctx.send(
             content=message,
             embed=embed

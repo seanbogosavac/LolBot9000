@@ -1,7 +1,8 @@
 from discord.ext import tasks
 from riot_api.client import get_current_match
-from config import PLAYERS, API_KEY, DISCORD_CHANNEL, CHAMPIONS
+from config import PLAYERS, API_KEY, DISCORD_CHANNEL
 from .bot_instance import bot
+from .functions import generate_in_game_message
 
 players_in_game = set()
 
@@ -17,8 +18,8 @@ async def check_players_in_game():
             print(f"Failed to fetch channel: {e}")
             return
 
-    for player_name, data in PLAYERS.items():
-        puuid = data['puuid']
+    for player_name, player_data in PLAYERS.items():
+        puuid = player_data['puuid']
 
         try:
             current_match = get_current_match(puuid, API_KEY)
@@ -27,28 +28,7 @@ async def check_players_in_game():
                 if puuid not in players_in_game:
                     players_in_game.add(puuid)
 
-                    mention = f"<@{int(data['discord_id'])}>"
-                    message = ""
-                    champion = ""
-
-                    # Find player's champion
-                    if puuid in current_match['players']:
-                        champ_id = current_match['champions'][current_match['players'].index(puuid)]
-                        champion = CHAMPIONS.get(champ_id, "un champion inconnu")
-
-                    # Write message according to the game type
-                    if current_match["gameType"] == '400':
-                        message = f"{mention} remet les crampons pour une nouvelle game avec **{champion}**"
-                    elif current_match["gameType"] == '420':
-                        message = f"Omg {mention} part en ranked sur avec **{champion}** ! Tout pour les e-points"
-                    elif current_match["gameType"] == '430':
-                        message = f"{mention} a lancé une normale classique vanille #aucuneDraftAucunFun. Je vais même pas dire sur quel champ t'es pour la peine..."
-                    elif current_match["gameType"] == '450':
-                        message = f"{mention} veut chill et part en ARAM avec **{champion}**"
-                    elif current_match["gameType"] == '900':
-                        message = f"{mention} joue au mode clash... (Qui fait ça?)"
-                    else:
-                        return
+                    message = generate_in_game_message(player_data, current_match)
                     await channel.send(message)
 
             else:
