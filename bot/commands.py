@@ -1,4 +1,4 @@
-from riot_api.client import get_match_data, get_player_info, get_last_match_id
+from api.client import get_match_data, get_player_info, get_last_match_id
 from config import PLAYERS, API_KEY
 from .bot_instance import bot
 from .functions.generate_match_info_response import generate_match_info_response

@@ -2,7 +2,7 @@ from discord.ext import tasks
 from config import PLAYERS, API_KEY, DISCORD_CHANNEL
 from .bot_instance import bot
 from .functions import generate_in_game_message, generate_match_info_response
-from riot_api.client import get_current_match, get_match_data
+from api.client import get_current_match, get_match_data
 
 ongoing_matches = {}
 
