@@ -1,9 +1,7 @@
 import os
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
-champions_data = requests.get("http://ddragon.leagueoflegends.com/cdn/13.14.1/data/en_US/champion.json").json()
+CHAMPIONS_DATA = requests.get("http://ddragon.leagueoflegends.com/cdn/13.14.1/data/en_US/champion.json").json()
 
 DISCORD_CHANNEL = os.getenv("DISCORD_CHANNEL")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -41,7 +39,7 @@ QUEUE_NAMES = {
 }
 
 CHAMPIONS = {}
-for champ_name, champ_info in champions_data['data'].items():
+for champ_name, champ_info in CHAMPIONS_DATA['data'].items():
     champ_id = int(champ_info['key'])
     tags = champ_info['tags']
     CHAMPIONS[champ_id] = {
