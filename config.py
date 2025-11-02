@@ -1,5 +1,8 @@
 import os
 import requests
+from typing import Dict
+
+from bot.types import PlayerStats
 
 CHAMPIONS_DATA = requests.get("https://ddragon.leagueoflegends.com/cdn/13.14.1/data/en_US/champion.json").json()
 
@@ -7,7 +10,7 @@ DISCORD_CHANNEL = os.getenv("DISCORD_CHANNEL")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 API_KEY = os.getenv("RIOT_API_KEY")
 
-PLAYERS = {
+PLAYERS: Dict[PlayerStats] = {
     "sean": {
         "name": "Sean",
         "puuid": os.getenv("RIOT_ID_SEAN"),
