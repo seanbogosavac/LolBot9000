@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-class PlayerStats(TypedDict):
+class PlayerInfos(TypedDict):
     name: str
     puuid: str
     discord_id: str

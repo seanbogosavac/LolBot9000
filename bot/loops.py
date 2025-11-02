@@ -2,7 +2,7 @@ from typing import Dict, Optional
 from discord.ext import tasks
 from discord import TextChannel, Embed
 
-from .types import PlayerStats
+from .types import PlayerInfos
 from .bot_instance import bot
 from .functions.generate_match_info_response import generate_match_info_response
 from api.types import Match, OngoingMatch
@@ -13,7 +13,7 @@ from api.client import get_current_match, get_match_data, NoOngoingMatch
 ongoing_matches: Dict[str, str] = {}
 
 
-def generate_in_game_message(player_info: PlayerStats, match_data: OngoingMatch) -> str:
+def generate_in_game_message(player_info: PlayerInfos, match_data: OngoingMatch) -> str:
     mention: str = ""
     champion: str = "un champion inconnu"
     puuid: Optional[str] = None

@@ -4,7 +4,7 @@ from api.client import get_match_data, get_player_info, get_last_match_id
 from config import PLAYERS, API_KEY
 from .bot_instance import bot
 from .functions.generate_match_info_response import generate_match_info_response
-from .types import PlayerStats
+from .types import PlayerInfos
 
 
 @bot.command()
@@ -107,7 +107,7 @@ async def lastgame(ctx, target=None):
     if len(ctx.message.mentions) > 0:
         discord_id: str = str(ctx.message.mentions[0].id)
 
-        player_info: Optional[PlayerStats] = None
+        player_info: Optional[PlayerInfos] = None
         for name, data in PLAYERS.items():
             if data["discord_id"] == discord_id or name == target.lower():
                 player_info = data
