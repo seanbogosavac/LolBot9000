@@ -1,7 +1,7 @@
 import os
 import requests
 
-CHAMPIONS_DATA = requests.get("http://ddragon.leagueoflegends.com/cdn/13.14.1/data/en_US/champion.json").json()
+CHAMPIONS_DATA = requests.get("https://ddragon.leagueoflegends.com/cdn/13.14.1/data/en_US/champion.json").json()
 
 DISCORD_CHANNEL = os.getenv("DISCORD_CHANNEL")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")

@@ -2,8 +2,8 @@ import requests
 
 def get_player_info(puuid, api_key):
     # RATE LIMIT 20000/10sec
-    URL = "https://euw1.api.riotgames.com/lol/league/v4/entries/by-puuid/" + puuid + "?api_key=" + api_key
-    response = requests.get(URL)
+    url = "https://euw1.api.riotgames.com/lol/league/v4/entries/by-puuid/" + puuid + "?api_key=" + api_key
+    response = requests.get(url)
 
     if response.status_code == 200:
         player_info = response.json()[0]
@@ -14,12 +14,13 @@ def get_player_info(puuid, api_key):
         return return_info
     else:
         print("Request failed with status code:", response.status_code)
+        return None
 
 
 def get_current_match(puuid, api_key):
     # RATE LIMIT 20000/10sec
-    URL = "https://euw1.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/" + puuid + "?api_key=" + api_key
-    response = requests.get(URL)
+    url = "https://euw1.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/" + puuid + "?api_key=" + api_key
+    response = requests.get(url)
 
     if response.status_code == 200:
         match_info = response.json()
@@ -32,23 +33,25 @@ def get_current_match(puuid, api_key):
         return return_info
     else:
         print("Request failed with status code:", response.status_code)
+        return None
 
 
 def get_last_match_id(puuid, api_key):
     # RATE LIMIT 2000/10sec
-    URL = "https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/" + puuid + "/ids?start=0&count=1&api_key=" + api_key
-    response = requests.get(URL)
+    url = "https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/" + puuid + "/ids?start=0&count=1&api_key=" + api_key
+    response = requests.get(url)
 
     if response.status_code == 200:
         return response.json()[0]
     else:
         print("Request failed with status code:", response.status_code)
+        return None
 
 
 def get_match_data(match_id, api_key):
     # RATE LIMIT 2000/10sec
-    URL = "https://europe.api.riotgames.com/lol/match/v5/matches/" + match_id + "?api_key=" + api_key
-    response = requests.get(URL)
+    url = "https://europe.api.riotgames.com/lol/match/v5/matches/" + match_id + "?api_key=" + api_key
+    response = requests.get(url)
 
     if response.status_code == 200:
         match_data = response.json()
@@ -81,3 +84,4 @@ def get_match_data(match_id, api_key):
         return return_data
     else:
         print("Request failed with status code:", response.status_code)
+        return None

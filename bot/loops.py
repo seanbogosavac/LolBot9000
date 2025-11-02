@@ -1,7 +1,8 @@
 from discord.ext import tasks
 from config import PLAYERS, API_KEY, DISCORD_CHANNEL
 from .bot_instance import bot
-from .functions import generate_in_game_message, generate_match_info_response
+from .functions.generate_in_game_message import generate_in_game_message
+from .functions.generate_match_info_response import generate_match_info_response
 from api.client import get_current_match, get_match_data
 
 ongoing_matches = {}
@@ -34,7 +35,7 @@ async def check_players_in_game():
             else:
                 if puuid in ongoing_matches:
                     # Remove ended match from the list and fetch its data
-                    ended_game_id = ongoing_matches.pop[puuid]
+                    ended_game_id = ongoing_matches.pop(puuid)
                     last_match_data = get_match_data(ended_game_id, API_KEY)
                     
                     # Generates response

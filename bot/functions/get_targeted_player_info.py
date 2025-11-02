@@ -1,4 +1,4 @@
-from config import PLAYERS;
+from config import PLAYERS
 
 async def get_targeted_player_info(ctx, target):
     discord_id = ""
