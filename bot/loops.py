@@ -1,3 +1,4 @@
+from time import sleep
 from typing import Dict, Optional
 from discord.ext import tasks
 from discord import TextChannel, Embed
@@ -7,7 +8,7 @@ from .bot_instance import bot
 from .functions.generate_match_info_response import generate_match_info_response
 from api.types import Match, OngoingMatch
 from config import PLAYERS, API_KEY, DISCORD_CHANNEL, CHAMPIONS
-from api.client import get_current_match, get_match_data, NoOngoingMatch
+from api.client import get_current_match, get_match_data, NoOngoingMatch, get_last_match_id
 
 # Map ongoing matches (player puuid to ongoing gameId)
 ongoing_matches: Dict[str, int] = {}
@@ -38,7 +39,7 @@ def generate_in_game_message(player_info: PlayerInfos, match_data: OngoingMatch)
     if game_type == 400:
         return f"{mention} remet les crampons pour une nouvelle game avec **{champion}** {role_message}"
     elif game_type == 420:
-        return f"Omg {mention} part en ranked sur avec **{champion}** {role_message} ! Tout pour les e-points"
+        return f"Omg {mention} part en ranked avec **{champion}** {role_message} ! Tout pour les e-points"
     elif game_type == 430:
         return f"{mention} a lancé une normale classique vanille #aucuneDraftAucunFun. Je vais même pas dire sur quel champ t'es pour la peine..."
     elif game_type == 450:
@@ -81,16 +82,19 @@ async def check_players_in_game() -> None:
         else:
             # No match detected. If ongoing match ended, retrieving its data for display
             if player_id in ongoing_matches:
-                ended_game_id: int = ongoing_matches.pop(player_id)
+                ongoing_matches.pop(player_id)
+                sleep(60)
 
                 try:
-                    last_match_data: Match = get_match_data(ended_game_id, API_KEY)
+                    # Fetch data of the last match played
+                    last_match_id: int = get_last_match_id(player_info['puuid'], API_KEY)
+                    last_match_data = get_match_data(last_match_id, API_KEY)
+
                     # Generates response
                     message, embed = generate_match_info_response(player_info, last_match_data)
-                    embed: Optional[Embed] # Type hints for embed
                     await channel.send(
                         content=message,
                         embed=embed
                     )
                 except Exception as e:
-                    print(f"Error getting info for match {ended_game_id}: {e}")
+                    print(f"Error fetching info for the ended match: {e}")
