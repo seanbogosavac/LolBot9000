@@ -1,63 +1,52 @@
 from typing import Optional
 
 from api.client import get_match_data, get_player_info, get_last_match_id
+from api.types import PlayerStats
 from config import PLAYERS, API_KEY
 from .bot_instance import bot
+from .exceptions import NoPlayerMentioned
+from .exceptions.UnknownPlayer import UnknownPlayer
+from .functions.find_targeted_player import find_targeted_player
 from .functions.generate_match_info_response import generate_match_info_response
 from .types import PlayerInfos
 
 
 @bot.command()
 async def lol(ctx, target=None):
-    # Case where noone is mentioned
-    if target is None:
-        await ctx.send("Oh tu veux les infos de qui ? Dis les termes là !")
-        return
-
-    # Somebody is mentioned
-    player_name = ""
-
-    if len(ctx.message.mentions) > 0:
-        discord_id = str(ctx.message.mentions[0].id)
-
-        for name, data in PLAYERS.items():
-            if data["discord_id"] == discord_id:
-                player_name = name
-                break
-    else:
-        player_name = target.lower()
-
-    # If the person mentioned is not recognized
-    if player_name not in PLAYERS:
-        await ctx.send("C'est qui frère ?")
-        return
-
-    # Gathering player rank
-    player = PLAYERS[player_name]
-    mention = f"<@{int(player['discord_id'])}>"
     try:
-        # Api call
-        info = get_player_info(player['puuid'], API_KEY)
-        rank = info.get("rank", "")
-        winrate = info.get("winrate", "")
+        player_name: str = await find_targeted_player(ctx, target)
+        player: PlayerInfos = PLAYERS[player_name]
 
-        # Generate a message and send it
-        message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, {'énorme sexe' if winrate > 50 else 'le gros nullos'}\n"
-        await ctx.send(message)
-    except IndexError:
-        await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
-    except Exception as e:
-        print(f"Error fetching info for {target}: {e}")
-        await ctx.send("G beugé chef")
+        mention: str = f"<@{int(player['discord_id'])}>"
+        try:
+            # Api call
+            info: PlayerStats = get_player_info(player['puuid'], API_KEY)
+            rank: str = info.get("rank", "")
+            winrate: int = info.get("winrate", "")
+
+            # Generate a message and send it
+            message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, {'énorme sexe' if winrate > 50 else 'le gros nullos'}\n"
+            await ctx.send(message)
+        except IndexError:
+            await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
+        except Exception as e:
+            print(f"Error fetching info for {target}: {e}")
+            await ctx.send("G beugé chef")
+
+    except NoPlayerMentioned:
+        await ctx.send("Oh tu veux les infos de qui ? Dis les termes là !")
+    except UnknownPlayer:
+        await ctx.send("C'est qui frère ?")
 
 
 @bot.command()
 async def leaderboard(ctx):
     stats = []
 
-    for player in PLAYERS.values():
+    for key, player in PLAYERS.items():
         info = get_player_info(player['puuid'], API_KEY)
         stats.append({
+            "key": key,
             "name": player['name'],
             "rank": info.get("rank", "Unranked"),
             "winrate": info.get("winrate", "N/A")
@@ -84,11 +73,22 @@ async def leaderboard(ctx):
 
     # Sort players by rank
     stats.sort(key=lambda x: rank_key(x["rank"]), reverse=True)
+    print(stats)
 
     # Build message
-    message = "🏆 **Classement des goats** 🏆\n"
+    best_player: PlayerInfos = PLAYERS[stats[0]["key"]]
+    best_player_mention: str = f"<@{int(best_player['discord_id'])}>"
+
+    message = (
+        f"Ok tout le monde gobe le paf de {best_player_mention}, le **GOAT** du discord\n\n"
+        f"🏆 **Classement des Stonkers** 🏆\n"
+        f"``` Nom      | Rang               | Winrate\n"
+        f"------------------------------------------\n"
+    )
+
     for i, player in enumerate(stats, start=1):
-        message += f"**{player['name']}** — {player['rank']} ({player['winrate']}% WR)\n"
+        message += f" {player['name']:<7}  | {player['rank']:<18} | {player['winrate']}%\n"
+    message += "```"
 
     try:
         await ctx.send(message)
@@ -99,23 +99,9 @@ async def leaderboard(ctx):
 
 @bot.command()
 async def lastgame(ctx, target=None):
-    # Check if there is a target
-    if target is None:
-        await ctx.send("Oh tu veux les infos de qui ? Dis les termes là !")
-        return
-
-    if len(ctx.message.mentions) > 0:
-        discord_id: str = str(ctx.message.mentions[0].id)
-
-        player_info: Optional[PlayerInfos] = None
-        for name, data in PLAYERS.items():
-            if data["discord_id"] == discord_id or name == target.lower():
-                player_info = data
-
-        if not player_info:
-            await ctx.send("C'est qui frère ?")
-            return
-
+    try:
+        player_name: str = await find_targeted_player(ctx, target)
+        player_info: PlayerInfos = PLAYERS[player_name]
         try:
             # Fetch data of the last match played
             last_match_id: int = get_last_match_id(player_info['puuid'], API_KEY)
@@ -126,7 +112,12 @@ async def lastgame(ctx, target=None):
             await ctx.send(
                 content=message,
                 embed=embed
-                )
+            )
         except Exception as e:
             print(f"Error fetching info for {target}: {e}")
             await ctx.send("G beugé chef")
+
+    except NoPlayerMentioned:
+        await ctx.send("Oh tu veux les infos de qui ? Dis les termes là !")
+    except UnknownPlayer:
+        await ctx.send("C'est qui frère ?")

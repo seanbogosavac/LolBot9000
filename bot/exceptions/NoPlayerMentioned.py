@@ -1,0 +1,2 @@
+class NoPlayerMentioned(Exception):
+    pass

@@ -1,0 +1,2 @@
+class UnknownPlayer(Exception):
+    pass
