@@ -58,7 +58,7 @@ def get_current_match(puuid: str, api_key: str) -> OngoingMatch:
     }
 
 
-def get_last_match_id(puuid: str, api_key: str) -> str:
+def get_last_match_id(puuid: str, api_key: str) -> int:
     """Retrieve the most recent match played by the selected player."""
     url = f"https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count=1&api_key={api_key}"
     data = riot_get(url)
@@ -67,7 +67,7 @@ def get_last_match_id(puuid: str, api_key: str) -> str:
     return data[0]
 
 
-def get_match_data(match_id: str, api_key: str) -> Match:
+def get_match_data(match_id: int, api_key: str) -> Match:
     """Retrieve all data about the selected match."""
     url = f"https://europe.api.riotgames.com/lol/match/v5/matches/{match_id}?api_key={api_key}"
     data = riot_get(url)

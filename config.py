@@ -6,11 +6,11 @@ from bot.types import PlayerInfos
 
 CHAMPIONS_DATA = requests.get("https://ddragon.leagueoflegends.com/cdn/13.14.1/data/en_US/champion.json").json()
 
-DISCORD_CHANNEL = os.getenv("DISCORD_CHANNEL")
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-API_KEY = os.getenv("RIOT_API_KEY")
+DISCORD_CHANNEL: str = os.getenv("DISCORD_CHANNEL")
+DISCORD_TOKEN: str = os.getenv("DISCORD_TOKEN")
+API_KEY: str = os.getenv("RIOT_API_KEY")
 
-PLAYERS: Dict[PlayerInfos] = {
+PLAYERS: Dict[str, PlayerInfos] = {
     "sean": {
         "name": "Sean",
         "puuid": os.getenv("RIOT_ID_SEAN"),
@@ -33,7 +33,7 @@ PLAYERS: Dict[PlayerInfos] = {
     }
 }
 
-QUEUE_NAMES = {
+QUEUE_NAMES: Dict[int, str] = {
     400: "Normal Draft",
     420: "Ranked Solo/Duo",
     440: "Ranked Flex",
@@ -41,10 +41,7 @@ QUEUE_NAMES = {
     430: "Normal Blind Pick",
 }
 
-CHAMPIONS = {}
+CHAMPIONS: Dict[int, str] = {}
 for champ_name, champ_info in CHAMPIONS_DATA['data'].items():
     champ_id = int(champ_info['key'])
-    tags = champ_info['tags']
-    CHAMPIONS[champ_id] = {
-        'name': champ_name
-    }
+    CHAMPIONS[champ_id] = champ_name

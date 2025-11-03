@@ -118,7 +118,7 @@ async def lastgame(ctx, target=None):
 
         try:
             # Fetch data of the last match played
-            last_match_id = get_last_match_id(player_info['puuid'], API_KEY)
+            last_match_id: int = get_last_match_id(player_info['puuid'], API_KEY)
             last_match_data = get_match_data(last_match_id, API_KEY)
 
             # Generates response
