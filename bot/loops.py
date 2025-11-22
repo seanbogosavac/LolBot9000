@@ -14,17 +14,11 @@ from api.client import get_current_match, get_match_data, NoOngoingMatch, get_la
 ongoing_matches: Dict[str, int] = {}
 
 
-def get_role(match_position: int) -> str:
-    if match_position % 5 == 0:
-        return "à la toplane"
-    elif match_position % 5 == 1:
-        return "en jungle"
-    elif match_position % 5 == 2:
-        return "au mid"
-    elif match_position % 5 == 3:
-        return "ADC"
+def yannis_le_ghosteur(player_info: PlayerInfos) -> str:
+    if player_info['name'] == "Yannis":
+        return "OMG OMG @everyone Yannis"
     else:
-        return "support (e-girl détéctée)"
+        return f"{player_info['name']}"
 
 
 def generate_in_game_message(player_info: PlayerInfos, match_data: OngoingMatch) -> str:
@@ -32,14 +26,13 @@ def generate_in_game_message(player_info: PlayerInfos, match_data: OngoingMatch)
     champ_id: int = match_data['champions'][player_position_in_match_data]
 
     champion: str = CHAMPIONS.get(champ_id, "un champion inconnu")
-    mention: str = f"<@{int(player_info['discord_id'])}>"
-    role_message: str = get_role(player_position_in_match_data)
+    mention: str = yannis_le_ghosteur(player_info)
 
     game_type = match_data.get("gameType", "")
     if game_type == 400:
-        return f"{mention} remet les crampons pour une nouvelle game avec **{champion}** {role_message}"
+        return f"{mention} remet les crampons pour une nouvelle game avec **{champion}**"
     elif game_type == 420:
-        return f"Omg {mention} part en ranked avec **{champion}** {role_message} ! Tout pour les e-points"
+        return f"Omg {mention} part en ranked avec **{champion}** ! Tout pour les e-points"
     elif game_type == 430:
         return f"{mention} a lancé une normale classique vanille #aucuneDraftAucunFun. Je vais même pas dire sur quel champ t'es pour la peine..."
     elif game_type == 450:
@@ -75,26 +68,32 @@ async def check_players_in_game() -> None:
         if current_match:
             # Match detected, adding it to the list of ongoing matches if not already
             if player_id not in ongoing_matches:
-                ongoing_matches[player_id] = current_match['gameId']
+                # If the match type is special, insert a 0 to prevent from trying to display post-match info
+                if current_match["gameType"] in {400, 420, 430, 450}:
+                    ongoing_matches[player_id] = current_match['gameId']
+                else:
+                    ongoing_matches[player_id] = 0
 
                 message: str = generate_in_game_message(player_info, current_match)
                 await channel.send(message)
         else:
             # No match detected. If ongoing match ended, retrieving its data for display
             if player_id in ongoing_matches:
-                ongoing_matches.pop(player_id)
+                match_id: int = ongoing_matches.pop(player_id)
                 sleep(60)
 
-                try:
-                    # Fetch data of the last match played
-                    last_match_id: int = get_last_match_id(player_info['puuid'], API_KEY)
-                    last_match_data = get_match_data(last_match_id, API_KEY)
+                # Check if the match data can be retrieved
+                if match_id != 0:
+                    try:
+                        # Fetch data of the last match played
+                        last_match_id: int = get_last_match_id(player_info['puuid'], API_KEY)
+                        last_match_data = get_match_data(last_match_id, API_KEY)
 
-                    # Generates response
-                    message, embed = generate_match_info_response(player_info, last_match_data)
-                    await channel.send(
-                        content=message,
-                        embed=embed
-                    )
-                except Exception as e:
-                    print(f"Error fetching info for the ended match: {e}")
+                        # Generates response
+                        message, embed = generate_match_info_response(player_info, last_match_data)
+                        await channel.send(
+                            content=message,
+                            embed=embed
+                        )
+                    except Exception as e:
+                        print(f"Error fetching info for the ended match: {e}")

@@ -12,7 +12,7 @@ def generate_kda_message(player_info, match_data):
     win = player_data['win']
 
 
-    message = f"<@{int(player_info['discord_id'])}>"
+    message = f"{player_info['name']}"
     if win:
         if kda > 5:
             message += " a retourné l'équipe adverse avec un KDA aussi gros que son sexe\n"

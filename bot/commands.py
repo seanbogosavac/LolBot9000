@@ -57,7 +57,7 @@ async def leaderboard(ctx):
         return
 
     # Define order of tiers and divisions
-    tier_order = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"]
+    tier_order = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"]
     division_order = ["IV", "III", "II", "I"]
 
     def rank_key(rank):
