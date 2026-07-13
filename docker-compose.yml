@@ -1,0 +1,13 @@
+services:
+  lolbot:
+    container_name: lolbot
+    build: .
+    image: lolbot9000
+    labels:
+      glance.name: Lolbot9000
+      glance.icon: assets/discord.svg
+      glance.description: Discord bot
+    restart: unless-stopped
+
+    env_file:
+      - .env
