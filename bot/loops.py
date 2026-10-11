@@ -42,6 +42,8 @@ def generate_in_game_message(player_info: PlayerInfos, match_data: OngoingMatch)
         return f"{mention} veut chill et part en ARAM avec **{champion}**"
     elif game_type == 900:
         return f"{mention} joue au mode clash... (Qui fait ça?)"
+    elif game_type == 2400:
+        return f"{mention} part en ARAM tout chaotique avec **{champion}**"
     else:
         return f"{mention} a lancé une game non détectée par le système (blip-bloup le robot à un problème)"
 
@@ -72,7 +74,7 @@ async def check_players_in_game() -> None:
             # Match detected, adding it to the list of ongoing matches if not already
             if player_id not in ongoing_matches:
                 # If the match type is special, insert a 0 to prevent from trying to display post-match info
-                if current_match["gameType"] in {400, 420, 430, 450}:
+                if current_match["gameType"] in {400, 420, 430, 450, 2400}:
                     ongoing_matches[player_id] = current_match['gameId']
                 else:
                     ongoing_matches[player_id] = 0
