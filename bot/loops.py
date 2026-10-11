@@ -2,14 +2,13 @@ import logging
 from time import sleep
 from typing import Dict, Optional
 from discord.ext import tasks
-from discord import TextChannel, Embed
+from discord import TextChannel
 
 from .types import PlayerInfos
-from .bot_instance import bot
+from .bot_instance import bot, riot_client
 from .functions.generate_match_info_response import generate_match_info_response
-from api.types import Match, OngoingMatch
-from config import PLAYERS, API_KEY, DISCORD_CHANNEL, CHAMPIONS
-from api.client import get_current_match, get_match_data, NoOngoingMatch, get_last_match_id
+from api import OngoingMatch, NoOngoingMatch, RiotAPIError
+from config import PLAYERS, DISCORD_CHANNEL, CHAMPIONS
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +63,11 @@ async def check_players_in_game() -> None:
         current_match: Optional[OngoingMatch] = None
 
         try:
-            current_match = get_current_match(player_id, API_KEY)
+            current_match = riot_client.get_current_match(player_id)
         except NoOngoingMatch:
             logger.debug("No ongoing match for %s", player_info['name'])
+        except RiotAPIError as e:
+            logger.error("Riot API error checking current match for %s: %s", player_name, e)
         except Exception as e:
             logger.error("Error checking current match for %s: %s", player_name, e, exc_info=True)
 
@@ -92,8 +93,8 @@ async def check_players_in_game() -> None:
                 if match_id != 0:
                     try:
                         # Fetch data of the last match played
-                        last_match_id: int = get_last_match_id(player_info['puuid'], API_KEY)
-                        last_match_data = get_match_data(last_match_id, API_KEY)
+                        last_match_id: str = riot_client.get_last_match_id(player_info['puuid'])
+                        last_match_data = riot_client.get_match_data(last_match_id)
 
                         # Generates response
                         message, embed = generate_match_info_response(player_info, last_match_data)

@@ -1,10 +1,9 @@
 import logging
 from typing import Optional
 
-from api.client import get_match_data, get_player_info, get_last_match_id
-from api.types import PlayerStats
-from config import PLAYERS, API_KEY
-from .bot_instance import bot
+from api import PlayerStats, RiotAPIError
+from config import PLAYERS
+from .bot_instance import bot, riot_client
 from .exceptions.NoPlayerMentioned import NoPlayerMentioned
 from .exceptions.UnknownPlayer import UnknownPlayer
 from .functions.find_targeted_player import find_targeted_player
@@ -24,15 +23,20 @@ async def lol(ctx, target=None):
         mention: str = f"<@{int(player['discord_id'])}>"
         try:
             # Api call
-            info: PlayerStats = get_player_info(player['puuid'], API_KEY)
-            rank: str = info.get("rank", "")
-            winrate: int = info.get("winrate", "")
+            info: PlayerStats = riot_client.get_player_info(player['puuid'])
+            rank: str = info.get("rank", "Unranked")
+            winrate: int = info.get("winrate", 0)
+
+            if rank == "Unranked":
+                await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
+                return
 
             # Generate a message and send it
             message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, {'énorme sexe' if winrate > 50 else 'le gros nullos'}\n"
             await ctx.send(message)
-        except IndexError:
-            await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
+        except RiotAPIError as e:
+            logger.error("Riot API error fetching info for %s: %s", target, e)
+            await ctx.send("Impossible de récupérer les informations depuis l'API Riot.")
         except Exception as e:
             logger.error("Error fetching info for %s: %s", target, e, exc_info=True)
             await ctx.send("G beugé chef")
@@ -49,13 +53,22 @@ async def leaderboard(ctx):
     stats = []
 
     for key, player in PLAYERS.items():
-        info = get_player_info(player['puuid'], API_KEY)
-        stats.append({
-            "key": key,
-            "name": player['name'],
-            "rank": info.get("rank", "Unranked"),
-            "winrate": info.get("winrate", "N/A")
-        })
+        try:
+            info = riot_client.get_player_info(player['puuid'])
+            stats.append({
+                "key": key,
+                "name": player['name'],
+                "rank": info.get("rank", "Unranked"),
+                "winrate": info.get("winrate", 0)
+            })
+        except Exception as e:
+            logger.warning("Failed to fetch stats for %s in leaderboard: %s", player['name'], e)
+            stats.append({
+                "key": key,
+                "name": player['name'],
+                "rank": "Unranked",
+                "winrate": 0
+            })
 
     if not stats:
         await ctx.send("Can't show leaderboard: no player data to display.")
@@ -110,8 +123,8 @@ async def lastgame(ctx, target=None):
         player_info: PlayerInfos = PLAYERS[player_name]
         try:
             # Fetch data of the last match played
-            last_match_id: int = get_last_match_id(player_info['puuid'], API_KEY)
-            last_match_data = get_match_data(last_match_id, API_KEY)
+            last_match_id: str = riot_client.get_last_match_id(player_info['puuid'])
+            last_match_data = riot_client.get_match_data(last_match_id)
 
             # Generates response
             message, embed = generate_match_info_response(player_info, last_match_data)
@@ -119,6 +132,9 @@ async def lastgame(ctx, target=None):
                 content=message,
                 embed=embed
             )
+        except RiotAPIError as e:
+            logger.error("Riot API error fetching last match for %s: %s", target, e)
+            await ctx.send("Impossible de récupérer les données du dernier match.")
         except Exception as e:
             logger.error("Error fetching info for %s: %s", target, e, exc_info=True)
             await ctx.send("G beugé chef")
