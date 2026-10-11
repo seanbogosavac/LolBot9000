@@ -14,5 +14,5 @@ nano .env
 Launch container with :
 ```bash
 docker build -t lolbot9000 .
-docker run -d --env-file .env lolbot9000
+docker compose up -d
 ```

@@ -1,3 +1,4 @@
+import logging
 from time import sleep
 from typing import Dict, Optional
 from discord.ext import tasks
@@ -9,6 +10,8 @@ from .functions.generate_match_info_response import generate_match_info_response
 from api.types import Match, OngoingMatch
 from config import PLAYERS, API_KEY, DISCORD_CHANNEL, CHAMPIONS
 from api.client import get_current_match, get_match_data, NoOngoingMatch, get_last_match_id
+
+logger = logging.getLogger(__name__)
 
 # Map ongoing matches (player puuid to ongoing gameId)
 ongoing_matches: Dict[str, int] = {}
@@ -51,7 +54,7 @@ async def check_players_in_game() -> None:
         try:
             channel = await bot.fetch_channel(DISCORD_CHANNEL)
         except Exception as e:
-            print(f"Failed to fetch channel: {e}")
+            logger.error("Failed to fetch channel %s: %s", DISCORD_CHANNEL, e)
             return
 
     for player_name, player_info in PLAYERS.items():
@@ -61,9 +64,9 @@ async def check_players_in_game() -> None:
         try:
             current_match = get_current_match(player_id, API_KEY)
         except NoOngoingMatch:
-            print(f"No ongoing match for {player_info['name']}")
+            logger.debug("No ongoing match for %s", player_info['name'])
         except Exception as e:
-            print(f"Error checking current match for {player_name}: {e}")
+            logger.error("Error checking current match for %s: %s", player_name, e, exc_info=True)
 
         if current_match:
             # Match detected, adding it to the list of ongoing matches if not already
@@ -76,6 +79,7 @@ async def check_players_in_game() -> None:
 
                 message: str = generate_in_game_message(player_info, current_match)
                 await channel.send(message)
+                logger.info("Sent in-game notification for %s (gameId: %s)", player_info['name'], current_match['gameId'])
         else:
             # No match detected. If ongoing match ended, retrieving its data for display
             if player_id in ongoing_matches:
@@ -95,5 +99,6 @@ async def check_players_in_game() -> None:
                             content=message,
                             embed=embed
                         )
+                        logger.info("Sent post-match info for %s (lastMatchId: %s)", player_info['name'], last_match_id)
                     except Exception as e:
-                        print(f"Error fetching info for the ended match: {e}")
+                        logger.error("Error fetching info for the ended match of %s: %s", player_info['name'], e, exc_info=True)

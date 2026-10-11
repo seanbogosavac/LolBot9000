@@ -1,10 +1,22 @@
+import logging
 import os
+from typing import Dict, Optional
 import requests
-from typing import Dict
 
 from bot.types import PlayerInfos
+from logger import setup_logging
 
-CHAMPIONS_DATA = requests.get("https://ddragon.leagueoflegends.com/cdn/13.14.1/data/en_US/champion.json").json()
+setup_logging()
+logger = logging.getLogger(__name__)
+
+LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_FILE: Optional[str] = os.getenv("LOG_FILE")
+
+try:
+    CHAMPIONS_DATA = requests.get("https://ddragon.leagueoflegends.com/cdn/13.14.1/data/en_US/champion.json").json()
+except Exception as e:
+    logger.error("Failed to fetch champion data from Data Dragon: %s", e)
+    CHAMPIONS_DATA = {"data": {}}
 
 DISCORD_CHANNEL: str = os.getenv("DISCORD_CHANNEL")
 DISCORD_TOKEN: str = os.getenv("DISCORD_TOKEN")

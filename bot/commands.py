@@ -1,18 +1,22 @@
+import logging
 from typing import Optional
 
 from api.client import get_match_data, get_player_info, get_last_match_id
 from api.types import PlayerStats
 from config import PLAYERS, API_KEY
 from .bot_instance import bot
-from .exceptions import NoPlayerMentioned
+from .exceptions.NoPlayerMentioned import NoPlayerMentioned
 from .exceptions.UnknownPlayer import UnknownPlayer
 from .functions.find_targeted_player import find_targeted_player
 from .functions.generate_match_info_response import generate_match_info_response
 from .types import PlayerInfos
 
+logger = logging.getLogger(__name__)
+
 
 @bot.command()
 async def lol(ctx, target=None):
+    logger.info("Command !lol invoked by %s (target: %s)", ctx.author, target)
     try:
         player_name: str = await find_targeted_player(ctx, target)
         player: PlayerInfos = PLAYERS[player_name]
@@ -30,7 +34,7 @@ async def lol(ctx, target=None):
         except IndexError:
             await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
         except Exception as e:
-            print(f"Error fetching info for {target}: {e}")
+            logger.error("Error fetching info for %s: %s", target, e, exc_info=True)
             await ctx.send("G beugé chef")
 
     except NoPlayerMentioned:
@@ -41,6 +45,7 @@ async def lol(ctx, target=None):
 
 @bot.command()
 async def leaderboard(ctx):
+    logger.info("Command !leaderboard invoked by %s", ctx.author)
     stats = []
 
     for key, player in PLAYERS.items():
@@ -73,7 +78,7 @@ async def leaderboard(ctx):
 
     # Sort players by rank
     stats.sort(key=lambda x: rank_key(x["rank"]), reverse=True)
-    print(stats)
+    logger.debug("Leaderboard stats: %s", stats)
 
     # Build message
     best_player: PlayerInfos = PLAYERS[stats[0]["key"]]
@@ -93,12 +98,13 @@ async def leaderboard(ctx):
     try:
         await ctx.send(message)
     except Exception as e:
-        print(f"Error sending leaderboard: {e}")
+        logger.error("Error sending leaderboard: %s", e, exc_info=True)
         await ctx.send("G beugé chef")
 
 
 @bot.command()
 async def lastgame(ctx, target=None):
+    logger.info("Command !lastgame invoked by %s (target: %s)", ctx.author, target)
     try:
         player_name: str = await find_targeted_player(ctx, target)
         player_info: PlayerInfos = PLAYERS[player_name]
@@ -114,7 +120,7 @@ async def lastgame(ctx, target=None):
                 embed=embed
             )
         except Exception as e:
-            print(f"Error fetching info for {target}: {e}")
+            logger.error("Error fetching info for %s: %s", target, e, exc_info=True)
             await ctx.send("G beugé chef")
 
     except NoPlayerMentioned:
