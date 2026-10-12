@@ -36,13 +36,23 @@ async def lol(ctx, target=None):
 
         try:
             info: PlayerStats = riot_client.get_player_info(player["puuid"])
-            rank, winrate = info.get("rank", "Unranked"), info.get("winrate", 0)
+            rank, winrate, streak = info.get("rank", "Unranked"), info.get("winrate", 0), info.get("streak", 0)
 
             if rank == "Unranked":
                 await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
                 return
 
-            await ctx.send(f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, {'énorme sexe' if winrate > 50 else 'le gros nullos'}\n")
+            if streak > 0:
+                streak_text = f"🔥 {streak} win streak"
+                vibe = "énorme sexe"
+            elif streak < 0:
+                streak_text = f"💀 {abs(streak)} lose streak"
+                vibe = "le gros nullos"
+            else:
+                streak_text = "pas de streak"
+                vibe = "le gros nullos"
+
+            await ctx.send(f"**{mention}** est **{rank}** avec un winrate de **{winrate}%** | {streak_text}, {vibe}\n")
         except RiotAPIError as e:
             logger.error("Riot API error fetching info for %s: %s", target, e)
             await ctx.send("Impossible de récupérer les informations depuis l'API Riot.")

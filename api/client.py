@@ -105,24 +105,76 @@ class RiotClient:
     ###
 
     def get_player_info(self, puuid: str) -> PlayerStats:
-        """Return the ranked stats (rank + winrate) for a player."""
+        """Return the ranked stats (rank + winrate + streak) for a player."""
         endpoint = f"/lol/league/v4/entries/by-puuid/{puuid}"
         try:
             data = self._request("GET", endpoint)
         except NotFoundError:
-            return {"rank": "Unranked", "winrate": 0}
+            return {"rank": "Unranked", "winrate": 0, "streak": 0}
 
         if not data:
-            return {"rank": "Unranked", "winrate": 0}
+            return {"rank": "Unranked", "winrate": 0, "streak": 0}
 
         entry = next((e for e in data if e.get("queueType") == "RANKED_SOLO_5x5"), data[0])
         tier = entry.get("tier", "Unranked")
         wins, losses = entry.get("wins", 0), entry.get("losses", 0)
         total = wins + losses
+
+        streak = self._compute_streak(puuid)
+
         return {
             "rank": f"{tier} {entry.get('rank', '')} {entry.get('leaguePoints', 0)} LP".strip() if tier != "Unranked" else "Unranked",
             "winrate": round(wins / total * 100) if total else 0,
+            "streak": streak,
         }
+
+    def _compute_streak(self, puuid: str, count: int = 10) -> int:
+        """Return the current win/lose streak from recent ranked matches.
+
+        A positive value means a win streak of that length.
+        A negative value means a lose streak of that length.
+        Returns 0 if the history cannot be determined.
+        """
+        try:
+            match_ids = self._request(
+                "GET",
+                f"/lol/match/v5/matches/by-puuid/{puuid}/ids",
+                regional=True,
+                params={"start": 0, "count": count, "type": "ranked"},
+            )
+        except Exception as e:
+            logger.warning("Could not fetch match history for streak calculation: %s", e)
+            return 0
+
+        if not match_ids:
+            return 0
+
+        streak = 0
+        first_result: bool | None = None
+
+        for match_id in match_ids:
+            try:
+                match_data = self._request("GET", f"/lol/match/v5/matches/{match_id}", regional=True)
+            except Exception as e:
+                logger.warning("Could not fetch match %s for streak calculation: %s", match_id, e)
+                break
+
+            participants = match_data.get("info", {}).get("participants", [])
+            player = next((p for p in participants if p.get("puuid") == puuid), None)
+            if player is None:
+                break
+
+            won = player.get("win", False)
+
+            if first_result is None:
+                first_result = won
+                streak = 1 if won else -1
+            elif won == first_result:
+                streak = streak + 1 if won else streak - 1
+            else:
+                break
+
+        return streak
 
     def get_current_match(self, puuid: str) -> OngoingMatch:
         """Return the active match for a player, or raise NoOngoingMatch."""

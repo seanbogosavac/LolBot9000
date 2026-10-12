@@ -6,6 +6,7 @@ __all__ = ["PlayerStats", "Participant", "Match", "OngoingMatch"]
 class PlayerStats(TypedDict):
     rank: str
     winrate: int
+    streak: int  # positive = win streak length, negative = lose streak length
 
 
 class Participant(TypedDict):
