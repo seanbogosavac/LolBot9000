@@ -1,4 +1,4 @@
-from typing import TypedDict, List
+from typing import TypedDict
 
 __all__ = ["PlayerStats", "Participant", "Match", "OngoingMatch"]
 
@@ -22,11 +22,11 @@ class Participant(TypedDict):
 class Match(TypedDict):
     gameType: int
     duration: str
-    participants: List[Participant]
+    participants: list[Participant]
 
 
 class OngoingMatch(TypedDict):
     gameId: int
     gameType: int
-    players: List[str]
-    champions: List[int]
+    players: list[str]
+    champions: list[int]

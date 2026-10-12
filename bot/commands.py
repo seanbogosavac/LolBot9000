@@ -1,16 +1,29 @@
 import logging
-from typing import Optional
 
 from api import PlayerStats, RiotAPIError
 from config import PLAYERS
 from .bot_instance import bot, riot_client
-from .exceptions.NoPlayerMentioned import NoPlayerMentioned
-from .exceptions.UnknownPlayer import UnknownPlayer
-from .functions.find_targeted_player import find_targeted_player
-from .functions.generate_match_info_response import generate_match_info_response
+from .exceptions import NoPlayerMentioned, UnknownPlayer
+from .helpers import generate_match_info_response
 from .types import PlayerInfos
 
 logger = logging.getLogger(__name__)
+
+
+async def find_targeted_player(ctx, target) -> str:
+    """Resolve a command target (mention or name string) to a known player key."""
+    if target is None:
+        raise NoPlayerMentioned
+
+    if ctx.message.mentions:
+        discord_id = str(ctx.message.mentions[0].id)
+        player_name = next((name for name, data in PLAYERS.items() if data["discord_id"] == discord_id), "")
+    else:
+        player_name = target.lower()
+
+    if player_name not in PLAYERS:
+        raise UnknownPlayer
+    return player_name
 
 
 @bot.command()
@@ -19,21 +32,17 @@ async def lol(ctx, target=None):
     try:
         player_name: str = await find_targeted_player(ctx, target)
         player: PlayerInfos = PLAYERS[player_name]
+        mention = f"<@{int(player['discord_id'])}>"
 
-        mention: str = f"<@{int(player['discord_id'])}>"
         try:
-            # Api call
-            info: PlayerStats = riot_client.get_player_info(player['puuid'])
-            rank: str = info.get("rank", "Unranked")
-            winrate: int = info.get("winrate", 0)
+            info: PlayerStats = riot_client.get_player_info(player["puuid"])
+            rank, winrate = info.get("rank", "Unranked"), info.get("winrate", 0)
 
             if rank == "Unranked":
                 await ctx.send(f"T'as pas de rang **{mention}**, va faire tes ranked là hopopop")
                 return
 
-            # Generate a message and send it
-            message = f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, {'énorme sexe' if winrate > 50 else 'le gros nullos'}\n"
-            await ctx.send(message)
+            await ctx.send(f"**{mention}** est **{rank}** avec un winrate de **{winrate}%**, {'énorme sexe' if winrate > 50 else 'le gros nullos'}\n")
         except RiotAPIError as e:
             logger.error("Riot API error fetching info for %s: %s", target, e)
             await ctx.send("Impossible de récupérer les informations depuis l'API Riot.")
@@ -50,63 +59,43 @@ async def lol(ctx, target=None):
 @bot.command()
 async def leaderboard(ctx):
     logger.info("Command !leaderboard invoked by %s", ctx.author)
-    stats = []
 
+    TIER_ORDER = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"]
+    DIVISION_ORDER = ["IV", "III", "II", "I"]
+
+    def rank_key(rank: str) -> tuple[int, int]:
+        parts = rank.upper().split()
+        if not parts or parts[0] == "UNRANKED":
+            return -1, -1
+        tier_i = TIER_ORDER.index(parts[0]) if parts[0] in TIER_ORDER else -1
+        div_i = DIVISION_ORDER.index(parts[1]) if len(parts) > 1 and parts[1] in DIVISION_ORDER else -1
+        return tier_i, div_i
+
+    stats = []
     for key, player in PLAYERS.items():
         try:
-            info = riot_client.get_player_info(player['puuid'])
-            stats.append({
-                "key": key,
-                "name": player['name'],
-                "rank": info.get("rank", "Unranked"),
-                "winrate": info.get("winrate", 0)
-            })
+            info = riot_client.get_player_info(player["puuid"])
+            stats.append({"key": key, "name": player["name"], "rank": info.get("rank", "Unranked"), "winrate": info.get("winrate", 0)})
         except Exception as e:
-            logger.warning("Failed to fetch stats for %s in leaderboard: %s", player['name'], e)
-            stats.append({
-                "key": key,
-                "name": player['name'],
-                "rank": "Unranked",
-                "winrate": 0
-            })
+            logger.warning("Failed to fetch stats for %s: %s", player["name"], e)
+            stats.append({"key": key, "name": player["name"], "rank": "Unranked", "winrate": 0})
 
     if not stats:
         await ctx.send("Can't show leaderboard: no player data to display.")
         return
 
-    # Define order of tiers and divisions
-    tier_order = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"]
-    division_order = ["IV", "III", "II", "I"]
-
-    def rank_key(rank):
-        rank = rank.upper()
-        if rank == "UNRANKED":
-            return -1, -1
-        parts = rank.split()
-        tier = parts[0]
-        division = parts[1] if len(parts) > 1 else ""
-        tier_index = tier_order.index(tier) if tier in tier_order else -1
-        div_index = division_order.index(division) if division in division_order else -1
-        return tier_index, div_index
-
-    # Sort players by rank
     stats.sort(key=lambda x: rank_key(x["rank"]), reverse=True)
     logger.debug("Leaderboard stats: %s", stats)
 
-    # Build message
-    best_player: PlayerInfos = PLAYERS[stats[0]["key"]]
-    best_player_mention: str = f"<@{int(best_player['discord_id'])}>"
-
+    best = PLAYERS[stats[0]["key"]]
+    rows = "\n".join(f" {p['name']:<7}  | {p['rank']:<18} | {p['winrate']}%" for p in stats)
     message = (
-        f"Ok tout le monde gobe le paf de {best_player_mention}, le **GOAT** du discord\n\n"
+        f"Ok tout le monde gobe le paf de <@{int(best['discord_id'])}>, le **GOAT** du discord\n\n"
         f"🏆 **Classement des Stonkers** 🏆\n"
         f"``` Nom      | Rang               | Winrate\n"
         f"------------------------------------------\n"
+        f"{rows}\n```"
     )
-
-    for i, player in enumerate(stats, start=1):
-        message += f" {player['name']:<7}  | {player['rank']:<18} | {player['winrate']}%\n"
-    message += "```"
 
     try:
         await ctx.send(message)
@@ -120,18 +109,12 @@ async def lastgame(ctx, target=None):
     logger.info("Command !lastgame invoked by %s (target: %s)", ctx.author, target)
     try:
         player_name: str = await find_targeted_player(ctx, target)
-        player_info: PlayerInfos = PLAYERS[player_name]
-        try:
-            # Fetch data of the last match played
-            last_match_id: str = riot_client.get_last_match_id(player_info['puuid'])
-            last_match_data = riot_client.get_match_data(last_match_id)
+        player: PlayerInfos = PLAYERS[player_name]
 
-            # Generates response
-            message, embed = generate_match_info_response(player_info, last_match_data)
-            await ctx.send(
-                content=message,
-                embed=embed
-            )
+        try:
+            last_match_id = riot_client.get_last_match_id(player["puuid"])
+            message, embed = generate_match_info_response(player, riot_client.get_match_data(last_match_id))
+            await ctx.send(content=message, embed=embed)
         except RiotAPIError as e:
             logger.error("Riot API error fetching last match for %s: %s", target, e)
             await ctx.send("Impossible de récupérer les données du dernier match.")

@@ -1,6 +1,7 @@
-from typing import TypedDict, Optional
+from typing import TypedDict
+
 
 class PlayerInfos(TypedDict):
     name: str
-    puuid: Optional[str]
-    discord_id: Optional[str]
+    puuid: str | None
+    discord_id: str | None
