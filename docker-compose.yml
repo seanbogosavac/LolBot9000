@@ -11,3 +11,10 @@ services:
 
     env_file:
       - .env
+
+    volumes:
+      # Keeps the SQLite player database across rebuilds and restarts.
+      - players-db:/app/data
+
+volumes:
+  players-db:

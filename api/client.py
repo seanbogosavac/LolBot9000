@@ -1,6 +1,7 @@
 import logging
 import time
 from typing import Any
+from urllib.parse import quote
 import requests
 
 from api.exceptions import (
@@ -103,6 +104,24 @@ class RiotClient:
     ###
     # PUBLIC METHODS
     ###
+
+    def get_puuid_by_riot_id(self, riot_id: str) -> str:
+        """Resolve a Riot ID ("GameName#Tag") to its puuid via the Account API."""
+        game_name, _, tag = riot_id.strip().lstrip("@").partition("#")
+        if not tag:
+            raise RiotAPIError(f"Riot ID {riot_id!r} must be in the 'GameName#Tag' format.")
+
+        # Spaces and other special characters are legal in Riot IDs but must be escaped in the path.
+        endpoint = f"/riot/account/v1/accounts/by-riot-id/{quote(game_name, safe='')}/{quote(tag, safe='')}"
+        try:
+            data = self._request("GET", endpoint, regional=True)
+        except NotFoundError as e:
+            raise RiotAPIError(f"Riot account {riot_id!r} not found.") from e
+
+        puuid = data.get("puuid", "") if isinstance(data, dict) else ""
+        if not puuid:
+            raise RiotAPIError(f"Riot account {riot_id!r} has no puuid.")
+        return puuid
 
     def get_player_info(self, puuid: str) -> PlayerStats:
         """Return the ranked stats (rank + winrate + streak) for a player."""

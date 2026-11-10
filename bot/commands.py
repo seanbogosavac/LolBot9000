@@ -1,37 +1,48 @@
 import logging
+import re
 
 from api import PlayerStats, RiotAPIError
-from config import PLAYERS
-from .bot_instance import bot, riot_client
+from config import riot_client
+from db import PlayerInfos
+
+from .bot_instance import bot
 from .exceptions import NoPlayerMentioned, UnknownPlayer
 from .helpers import generate_match_info_response
-from .types import PlayerInfos
+from .roster import (
+    PlayerActionError,
+    add_player,
+    find_player,
+    get_player_by_discord_id,
+    list_players,
+    remove_player,
+    update_player,
+)
 
 logger = logging.getLogger(__name__)
 
+USER_MENTION = re.compile(r"<@!?(\d+)>")
 
-async def find_targeted_player(ctx, target) -> str:
-    """Resolve a command target (mention or name string) to a known player key."""
+
+async def find_targeted_player(ctx, target) -> PlayerInfos:
+    """Resolve a command target (mention or name string) to a registered player."""
     if target is None:
         raise NoPlayerMentioned
 
     if ctx.message.mentions:
-        discord_id = str(ctx.message.mentions[0].id)
-        player_name = next((name for name, data in PLAYERS.items() if data["discord_id"] == discord_id), "")
+        player = get_player_by_discord_id(str(ctx.message.mentions[0].id))
     else:
-        player_name = target.lower()
+        player = find_player(target)
 
-    if player_name not in PLAYERS:
+    if player is None:
         raise UnknownPlayer
-    return player_name
+    return player
 
 
 @bot.command()
 async def lol(ctx, target=None):
     logger.info("Command !lol invoked by %s (target: %s)", ctx.author, target)
     try:
-        player_name: str = await find_targeted_player(ctx, target)
-        player: PlayerInfos = PLAYERS[player_name]
+        player: PlayerInfos = await find_targeted_player(ctx, target)
         mention = f"<@{int(player['discord_id'])}>"
 
         try:
@@ -64,11 +75,18 @@ async def lol(ctx, target=None):
         await ctx.send("Oh tu veux les infos de qui ? Dis les termes là !")
     except UnknownPlayer:
         await ctx.send("C'est qui frère ?")
+    except PlayerActionError as e:
+        await ctx.send(str(e))
 
 
 @bot.command()
 async def leaderboard(ctx):
     logger.info("Command !leaderboard invoked by %s", ctx.author)
+    try:
+        roster = list_players()
+    except PlayerActionError as e:
+        await ctx.send(str(e))
+        return
 
     TIER_ORDER = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"]
     DIVISION_ORDER = ["IV", "III", "II", "I"]
@@ -81,24 +99,24 @@ async def leaderboard(ctx):
         div_i = DIVISION_ORDER.index(parts[1]) if len(parts) > 1 and parts[1] in DIVISION_ORDER else -1
         return tier_i, div_i
 
-    stats = []
-    for key, player in PLAYERS.items():
-        try:
-            info = riot_client.get_player_info(player["puuid"])
-            stats.append({"key": key, "name": player["name"], "rank": info.get("rank", "Unranked"), "winrate": info.get("winrate", 0)})
-        except Exception as e:
-            logger.warning("Failed to fetch stats for %s: %s", player["name"], e)
-            stats.append({"key": key, "name": player["name"], "rank": "Unranked", "winrate": 0})
-
-    if not stats:
+    if not roster:
         await ctx.send("Can't show leaderboard: no player data to display.")
         return
+
+    stats = []
+    for player in roster:
+        try:
+            info = riot_client.get_player_info(player["puuid"])
+            stats.append({"player": player, "rank": info.get("rank", "Unranked"), "winrate": info.get("winrate", 0)})
+        except Exception as e:
+            logger.warning("Failed to fetch stats for %s: %s", player["name"], e)
+            stats.append({"player": player, "rank": "Unranked", "winrate": 0})
 
     stats.sort(key=lambda x: rank_key(x["rank"]), reverse=True)
     logger.debug("Leaderboard stats: %s", stats)
 
-    best = PLAYERS[stats[0]["key"]]
-    rows = "\n".join(f" {p['name']:<7}  | {p['rank']:<18} | {p['winrate']}%" for p in stats)
+    best = stats[0]["player"]
+    rows = "\n".join(f" {s['player']['name']:<7}  | {s['rank']:<18} | {s['winrate']}%" for s in stats)
     message = (
         f"Ok tout le monde gobe le paf de <@{int(best['discord_id'])}>, le **GOAT** du discord\n\n"
         f"🏆 **Classement des Stonkers** 🏆\n"
@@ -118,8 +136,7 @@ async def leaderboard(ctx):
 async def lastgame(ctx, target=None):
     logger.info("Command !lastgame invoked by %s (target: %s)", ctx.author, target)
     try:
-        player_name: str = await find_targeted_player(ctx, target)
-        player: PlayerInfos = PLAYERS[player_name]
+        player: PlayerInfos = await find_targeted_player(ctx, target)
 
         try:
             last_match_id = riot_client.get_last_match_id(player["puuid"])
@@ -136,3 +153,112 @@ async def lastgame(ctx, target=None):
         await ctx.send("Oh tu veux les infos de qui ? Dis les termes là !")
     except UnknownPlayer:
         await ctx.send("C'est qui frère ?")
+    except PlayerActionError as e:
+        await ctx.send(str(e))
+
+
+###
+# PLAYER ROSTER MANAGEMENT
+###
+
+def parse_player_args(args: list[str], *, require_riot_id: bool = False) -> tuple[str, str | None, str | None]:
+    """Split roster command arguments into (name, discord_id, riot_id).
+
+    The Discord account is given as a mention or a raw snowflake, the Riot account as a
+    `Pseudo#TAG` Riot ID or a raw puuid. Everything left over is the player name, so
+    names with spaces work too:
+
+        !addplayer Maxou <@123456789012345678> Pseudo#EUW
+    """
+    discord_id: str | None = None
+    riot_id: str | None = None
+    rest: list[str] = []
+
+    for index, arg in enumerate(args):
+        mention = USER_MENTION.fullmatch(arg)
+        if mention:
+            discord_id = discord_id or mention.group(1)
+            continue
+        if arg.isdigit() and len(arg) >= 17:
+            discord_id = discord_id or arg
+            continue
+        if riot_id is None and ("#" in arg or (len(arg) >= 16 and index == len(args) - 1)):
+            riot_id = arg
+            continue
+        rest.append(arg)
+
+    name = " ".join(rest)
+    if require_riot_id and riot_id is None:
+        raise PlayerActionError("Il me faut le compte Riot du joueur, au format `Pseudo#TAG` (ou directement son puuid).")
+    return name, discord_id, riot_id
+
+
+@bot.command()
+async def addplayer(ctx, *args: str):
+    logger.info("Command !addplayer invoked by %s with args %s", ctx.author, args)
+    try:
+        name, discord_id, riot_id = parse_player_args(list(args), require_riot_id=True)
+        if not name:
+            raise PlayerActionError("Donne-moi un pseudo, du style `!addplayer Maxou <@discord> Pseudo#TAG`.")
+        if discord_id is None:
+            raise PlayerActionError("Tag la personne dont tu veux enregistrer le compte, ou donne son ID Discord.")
+
+        player = add_player(name, discord_id, riot_id)
+        await ctx.send(f"J'ai enregistré **{player['name']}** (<@{int(player['discord_id'])}>) dans la base des joueurs.")
+    except PlayerActionError as e:
+        await ctx.send(str(e))
+    except Exception as e:
+        logger.error("Error adding player %s: %s", " ".join(args), e, exc_info=True)
+        await ctx.send("G beugé chef")
+
+
+@bot.command()
+async def updateplayer(ctx, *args: str):
+    logger.info("Command !updateplayer invoked by %s with args %s", ctx.author, args)
+    try:
+        name, discord_id, riot_id = parse_player_args(list(args))
+        if discord_id is None and riot_id is None:
+            raise PlayerActionError("Donne-moi un nouveau Discord ou un nouveau compte Riot à lier.")
+
+        player = update_player(name, discord_id=discord_id, riot_identifier=riot_id)
+        await ctx.send(f"Compte mis à jour pour **{player['name']}** (<@{int(player['discord_id'])}>).")
+    except PlayerActionError as e:
+        await ctx.send(str(e))
+    except Exception as e:
+        logger.error("Error updating player %s: %s", " ".join(args), e, exc_info=True)
+        await ctx.send("G beugé chef")
+
+
+@bot.command()
+async def removeplayer(ctx, *args: str):
+    logger.info("Command !removeplayer invoked by %s with args %s", ctx.author, args)
+    name = " ".join(args)
+    try:
+        player = remove_player(name)
+        await ctx.send(f"**{player['name']}** n'est plus dans la base, je le surveille plus.")
+    except PlayerActionError as e:
+        await ctx.send(str(e))
+    except Exception as e:
+        logger.error("Error removing player %s: %s", name, e, exc_info=True)
+        await ctx.send("G beugé chef")
+
+
+@bot.command(name="players")
+async def listplayers(ctx):
+    logger.info("Command !players invoked by %s", ctx.author)
+    try:
+        roster = list_players()
+    except PlayerActionError as e:
+        await ctx.send(str(e))
+        return
+
+    if not roster:
+        await ctx.send("Y'a personne enregistré là. Fais `!addplayer Pseudo <@discord> Riot#TAG`.")
+        return
+
+    rows = "\n".join(f" {p['name']:<12} | <@{int(p['discord_id'])}> | `{p['puuid'][:16]}…`" for p in roster)
+    await ctx.send(
+        f"📋 **{len(roster)} joueur(s) enregistrés**\n"
+        f"```\n Nom          | Discord                    | Riot puuid\n"
+        f"-----------------------------------------------------------\n{rows}\n```"
+    )

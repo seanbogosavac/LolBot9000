@@ -6,3 +6,10 @@ __pycache__/
 .vscode
 *.pyc
 *.log
+
+# Local SQLite player database
+data/
+*.db
+*.db-wal
+*.db-shm
+.pytest_cache/

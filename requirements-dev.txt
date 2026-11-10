@@ -1,0 +1,2 @@
+# Development-only dependencies (the image does not need them)
+pytest==9.2.0

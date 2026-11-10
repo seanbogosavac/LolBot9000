@@ -1,9 +1,11 @@
 import logging
 import os
+from pathlib import Path
 from typing import Dict, Optional
 import requests
 
-from bot.types import PlayerInfos
+from api import RiotClient
+from db import PlayerRepository, seed_from_environment
 from logger import setup_logging
 
 setup_logging()
@@ -22,28 +24,21 @@ DISCORD_CHANNEL: str = os.getenv("DISCORD_CHANNEL")
 DISCORD_TOKEN: str = os.getenv("DISCORD_TOKEN")
 API_KEY: str = os.getenv("RIOT_API_KEY")
 
-PLAYERS: Dict[str, PlayerInfos] = {
-    "sean": {
-        "name": "Sean",
-        "puuid": os.getenv("RIOT_ID_SEAN"),
-        "discord_id": os.getenv("DISCORD_ID_SEAN")
-    },
-    "maxime": {
-        "name": "Maxime",
-        "puuid": os.getenv("RIOT_ID_MAXIME"),
-        "discord_id": os.getenv("DISCORD_ID_MAXIME")
-    },
-    "thomas": {
-        "name": "Thomas",
-        "puuid": os.getenv("RIOT_ID_THOMAS"),
-        "discord_id": os.getenv("DISCORD_ID_THOMAS")
-    },
-    "yannis": {
-        "name": "Yannis",
-        "puuid": os.getenv("RIOT_ID_YANNIS"),
-        "discord_id": os.getenv("DISCORD_ID_YANNIS")
-    }
-}
+# Players live in SQLite now, so the roster can change without redeploying the bot.
+# Set PLAYERS_DB to move the file (docker-compose mounts a volume for it).
+BASE_DIR: Path = Path(__file__).resolve().parent
+PLAYERS_DB_PATH: Path = Path(os.getenv("PLAYERS_DB", BASE_DIR / "data" / "players.db"))
+
+try:
+    players = PlayerRepository(PLAYERS_DB_PATH)
+except Exception as e:
+    logger.critical("Could not open the players database at %s: %s", PLAYERS_DB_PATH, e)
+    raise
+
+# One-off import of the old .env-based roster, only when the table is still empty.
+seed_from_environment(players)
+
+riot_client = RiotClient(api_key=API_KEY)
 
 QUEUE_NAMES: Dict[int, str] = {
     400: "Normal Draft",
