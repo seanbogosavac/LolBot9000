@@ -39,7 +39,14 @@ def generate_in_game_message(player_info: PlayerInfos, match_data: OngoingMatch)
     return builder(mention, champion) if builder else f"{mention} a lancé une game non détectée par le système (blip-bloup le robot à un problème)"
 
 
-@tasks.loop(seconds=5)
+# Riot's app-level limit is 100 requests per 2 minutes. Each pass costs one request per
+# player, so at 10s a 4-player roster uses 48 (and ~8 players would still fit). Polling
+# faster than this throttles the bot, and a 429 stalls every player's notification because
+# the loop is serial.
+POLL_SECONDS = 10
+
+
+@tasks.loop(seconds=POLL_SECONDS)
 async def check_players_in_game() -> None:
     """Check if players are currently in a game and notify the Discord channel."""
     # The roster can change at any time, so it is re-read on every tick. A database
