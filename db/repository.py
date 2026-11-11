@@ -10,6 +10,7 @@ from .errors import (
     InvalidDiscordId,
     InvalidPlayerName,
     InvalidPuuid,
+    InvalidRiotName,
     NameAlreadyExists,
     PlayerNotFound,
     PuuidAlreadyExists,
@@ -24,6 +25,9 @@ __all__ = ["PlayerRepository", "column"]
 NAME_PATTERN = re.compile(r"^[\w .'\-]{1,32}$", re.UNICODE)
 DISCORD_ID_PATTERN = re.compile(r"^\d{17,20}$")
 PUUID_PATTERN = re.compile(r"^[0-9A-Za-z_\-]{16,128}$")
+# Riot IDs are "GameName#TAG"; legacy accounts have no tag. Both are accepted here, the
+# API being the real authority on what exists.
+RIOT_NAME_PATTERN = re.compile(r"^[\w .'\-]{1,32}(#[\w .'\-]{1,16})?$", re.UNICODE)
 
 # Column names accepted by `column`, mapped to their (case-insensitive) lookup expression.
 LOOKUP_COLUMNS = {
@@ -31,6 +35,9 @@ LOOKUP_COLUMNS = {
     "puuid": "puuid",
     "discord_id": "discord_id",
 }
+
+# Every column of a player row that `_row_to_player` reads.
+PLAYER_COLUMNS = "name, puuid, discord_id, riot_name"
 
 
 def column(name: str) -> str:
@@ -42,7 +49,12 @@ def column(name: str) -> str:
 
 
 def _row_to_player(row: sqlite3.Row) -> PlayerInfos:
-    return {"name": row["name"], "puuid": row["puuid"], "discord_id": row["discord_id"]}
+    return {
+        "name": row["name"],
+        "puuid": row["puuid"],
+        "discord_id": row["discord_id"],
+        "riot_name": row["riot_name"],
+    }
 
 
 class PlayerRepository:
@@ -155,6 +167,16 @@ class PlayerRepository:
             raise InvalidPuuid("Un puuid Riot doit être une chaîne alphanumérique de 16 à 128 caractères.")
         return cleaned
 
+    @staticmethod
+    def normalize_riot_name(riot_name: str | None) -> str | None:
+        """Clean a Riot ID ("GameName#TAG"); an empty value means "we don't know it"."""
+        cleaned = str(riot_name or "").strip().lstrip("@")
+        if not cleaned:
+            return None
+        if not RIOT_NAME_PATTERN.match(cleaned):
+            raise InvalidRiotName("Un pseudo Riot doit être du style `Pseudo#TAG`.")
+        return cleaned
+
     ###
     # READS
     ###
@@ -163,7 +185,7 @@ class PlayerRepository:
         """Return the player registered under `value`, looked up `by` name, puuid or discord_id."""
         expression = column(by)
         lookup = self.normalize_discord_id(value) if by == "discord_id" else str(value).strip()
-        rows = self._query(f"SELECT name, puuid, discord_id FROM players WHERE {expression} = ?", (lookup,))
+        rows = self._query(f"SELECT {PLAYER_COLUMNS} FROM players WHERE {expression} = ?", (lookup,))
         if not rows:
             raise PlayerNotFound(f"Aucun joueur trouvé pour {by}={value!r}.")
         return _row_to_player(rows[0])
@@ -176,7 +198,7 @@ class PlayerRepository:
             return None
 
     def all(self) -> list[PlayerInfos]:
-        rows = self._query("SELECT name, puuid, discord_id FROM players ORDER BY name COLLATE NOCASE")
+        rows = self._query(f"SELECT {PLAYER_COLUMNS} FROM players ORDER BY name COLLATE NOCASE")
         return [_row_to_player(row) for row in rows]
 
     def names(self) -> list[str]:
@@ -193,8 +215,11 @@ class PlayerRepository:
     # WRITES
     ###
 
-    def add(self, name: str, discord_id: str, puuid: str) -> PlayerInfos:
+    def add(self, name: str, discord_id: str, puuid: str, riot_name: str | None = None) -> PlayerInfos:
         """Register a new player.
+
+        `riot_name` is the in-game Riot ID ("GameName#TAG"); when it is unknown the player is
+        stored without one and the bot fills it in later.
 
         Raises the matching DatabaseError subclass if the name, the Riot account or
         the Discord account is already taken.
@@ -203,6 +228,7 @@ class PlayerRepository:
             "name": self.normalize_name(name),
             "discord_id": self.normalize_discord_id(discord_id),
             "puuid": self.normalize_puuid(puuid),
+            "riot_name": self.normalize_riot_name(riot_name),
         }
 
         existing = self.find(player["name"], by="name")
@@ -210,20 +236,24 @@ class PlayerRepository:
             raise NameAlreadyExists(f"{player['name']} est déjà enregistré.")
 
         self._execute(
-            "INSERT INTO players (name, puuid, discord_id) VALUES (?, ?, ?)",
-            (player["name"], player["puuid"], player["discord_id"]),
+            "INSERT INTO players (name, puuid, discord_id, riot_name) VALUES (?, ?, ?, ?)",
+            (player["name"], player["puuid"], player["discord_id"], player["riot_name"]),
         )
         logger.info("Registered player %s (discord_id=%s)", player["name"], player["discord_id"])
         return player
 
-    def update(self, name: str, *, discord_id: str | None = None, puuid: str | None = None) -> PlayerInfos:
-        """Change the Riot or Discord id of an existing player."""
+    def update(self, name: str, *, discord_id: str | None = None, puuid: str | None = None, riot_name: str | None = None) -> PlayerInfos:
+        """Change the Riot id, the in-game Riot name or the Discord id of an existing player."""
         current = self.get(name)
-        changes: dict[str, str] = {}
+        changes: dict[str, str | None] = {}
         if discord_id is not None:
             changes["discord_id"] = self.normalize_discord_id(discord_id)
         if puuid is not None:
             changes["puuid"] = self.normalize_puuid(puuid)
+        if riot_name is not None:
+            # An empty string means "forget the name we had": the row goes back to NULL and
+            # the in-game name is resolved again from the new account.
+            changes["riot_name"] = self.normalize_riot_name(riot_name)
         if not changes:
             return current
 
@@ -242,8 +272,8 @@ class PlayerRepository:
         logger.info("Removed player %s", player["name"])
         return player
 
-    def upsert(self, name: str, discord_id: str, puuid: str) -> PlayerInfos:
+    def upsert(self, name: str, discord_id: str, puuid: str, riot_name: str | None = None) -> PlayerInfos:
         """Add a player, replacing their ids if the name is already registered."""
         if self.exists(name):
-            return self.update(name, discord_id=discord_id, puuid=puuid)
-        return self.add(name, discord_id, puuid)
+            return self.update(name, discord_id=discord_id, puuid=puuid, riot_name=riot_name)
+        return self.add(name, discord_id, puuid, riot_name)

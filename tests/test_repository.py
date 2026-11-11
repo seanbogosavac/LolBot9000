@@ -9,6 +9,7 @@ from db import (
     InvalidDiscordId,
     InvalidPlayerName,
     InvalidPuuid,
+    InvalidRiotName,
     NameAlreadyExists,
     PlayerNotFound,
     PlayerRepository,
@@ -21,6 +22,7 @@ from tests.conftest import (
     PUUID_MAXIME,
     PUUID_SEAN,
     PUUID_THOMAS,
+    RIOT_NAME_SEAN,
 )
 
 
@@ -39,9 +41,60 @@ def test_schema_is_versioned_and_wal(repo, tmp_path):
         conn.close()
 
 
+def test_an_old_database_is_upgraded_in_place(tmp_path):
+    """A database created before the riot_name column keeps its rows and gains the column."""
+    path = tmp_path / "players.db"
+    conn = sqlite3.connect(path)
+    conn.executescript(
+        """
+        CREATE TABLE players (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+            puuid      TEXT    NOT NULL UNIQUE,
+            discord_id TEXT    NOT NULL UNIQUE,
+            created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX players_name_idx ON players (name COLLATE NOCASE);
+        INSERT INTO players (name, puuid, discord_id) VALUES ('Sean', 'AbCdEf1234567890_-abcdef1234567890', '123456789012345678');
+        PRAGMA user_version = 1;
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    with PlayerRepository(path) as repo:
+        assert repo.count() == 1
+        assert repo.get("Sean")["riot_name"] is None
+
+        repo.update("Sean", riot_name=RIOT_NAME_SEAN)
+        assert repo.get("Sean")["riot_name"] == RIOT_NAME_SEAN
+
+
 def test_add_returns_the_normalized_player(repo):
     player = repo.add("  sean   the  goat ", DISCORD_SEAN, PUUID_SEAN)
-    assert player == {"name": "sean the goat", "puuid": PUUID_SEAN, "discord_id": DISCORD_SEAN}
+    assert player == {"name": "sean the goat", "puuid": PUUID_SEAN, "discord_id": DISCORD_SEAN, "riot_name": None}
+
+
+def test_add_keeps_the_in_game_riot_name(repo):
+    player = repo.add("Sean", DISCORD_SEAN, PUUID_SEAN, "SeanTheGoat#EUW")
+    assert player["riot_name"] == "SeanTheGoat#EUW"
+    assert repo.get("Sean")["riot_name"] == "SeanTheGoat#EUW"
+    assert repo.all()[0]["riot_name"] == "SeanTheGoat#EUW"
+
+
+def test_riot_name_is_optional_and_stays_null_when_unknown(repo):
+    assert repo.add("Sean", DISCORD_SEAN, PUUID_SEAN)["riot_name"] is None
+
+
+@pytest.mark.parametrize("riot_name", ["@Leading@At#EUW", "a" * 40, "bad;char"])
+def test_invalid_riot_names_are_rejected(repo, riot_name):
+    with pytest.raises(InvalidRiotName):
+        repo.add("Sean", DISCORD_SEAN, PUUID_SEAN, riot_name)
+    assert repo.count() == 0
+
+
+def test_an_empty_riot_name_is_stored_as_unknown(repo):
+    assert repo.add("Sean", DISCORD_SEAN, PUUID_SEAN, "   ")["riot_name"] is None
 
 
 @pytest.mark.parametrize("by,value", [
@@ -108,9 +161,14 @@ def test_update_changes_only_what_is_given(seeded):
     updated = seeded.update("sean", puuid=PUUID_THOMAS)
     assert updated["puuid"] == PUUID_THOMAS
     assert updated["discord_id"] == DISCORD_SEAN
+    assert updated["riot_name"] == RIOT_NAME_SEAN
 
     unchanged = seeded.update("Sean")
     assert unchanged == updated
+
+
+def test_update_can_rename_the_in_game_riot_name(seeded):
+    assert seeded.update("Sean", riot_name="NewName#EUW")["riot_name"] == "NewName#EUW"
 
 
 def test_update_rejects_taken_ids(seeded):
