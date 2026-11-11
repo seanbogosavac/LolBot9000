@@ -1,8 +1,19 @@
 import pytest
 
 import bot.commands as commands
+from api import RiotAPIError
 from bot.exceptions import NoPlayerMentioned, UnknownPlayer
-from tests.conftest import DISCORD_MAXIME, DISCORD_SEAN, DISCORD_THOMAS, PUUID_MAXIME, PUUID_SEAN, PUUID_THOMAS, run
+from tests.conftest import (
+    DISCORD_MAXIME,
+    DISCORD_SEAN,
+    DISCORD_THOMAS,
+    PUUID_MAXIME,
+    PUUID_SEAN,
+    PUUID_THOMAS,
+    RIOT_NAME_MAXIME,
+    RIOT_NAME_SEAN,
+    run,
+)
 
 
 def call(command, ctx, *args):
@@ -98,9 +109,29 @@ class TestRosterCommands:
         assert seeded_roster.count() == 1
         assert "pas dans la liste" in call(commands.removeplayer, ctx(), "Maxime")[0]
 
-    def test_players_lists_the_roster(self, seeded_roster, ctx):
+    def test_players_lists_the_roster(self, seeded_roster, fake_riot, ctx):
         out = call(commands.listplayers, ctx())[0]
-        assert "2 joueur" in out and "Sean" in out and PUUID_SEAN[:16] in out
+        assert "2 joueur" in out and "Sean" in out and RIOT_NAME_SEAN in out
+
+    def test_players_shows_the_in_game_name_not_the_puuid(self, seeded_roster, fake_riot, ctx):
+        out = call(commands.listplayers, ctx())[0]
+        assert PUUID_SEAN[:16] not in out and RIOT_NAME_MAXIME in out
+
+    def test_players_resolves_names_missing_from_old_rows(self, roster, fake_riot, ctx):
+        roster.add("Sean", DISCORD_SEAN, PUUID_SEAN)  # registered before the riot_name column
+        out = call(commands.listplayers, ctx())[0]
+        assert RIOT_NAME_SEAN in out
+        assert roster.get("Sean")["riot_name"] == RIOT_NAME_SEAN
+
+    def test_players_falls_back_to_the_puuid_when_riot_is_unreachable(self, roster, fake_riot, monkeypatch, ctx):
+        roster.add("Sean", DISCORD_SEAN, PUUID_SEAN)
+
+        def unavailable(puuid):
+            raise RiotAPIError("unreachable")
+
+        monkeypatch.setattr(commands.riot_client, "get_riot_id_by_puuid", unavailable)
+        out = call(commands.listplayers, ctx())[0]
+        assert f"`{PUUID_SEAN[:16]}…`" in out
 
     def test_players_hints_at_addplayer_when_empty(self, roster, ctx):
         assert "!addplayer" in call(commands.listplayers, ctx())[0]

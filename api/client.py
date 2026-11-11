@@ -123,6 +123,20 @@ class RiotClient:
             raise RiotAPIError(f"Riot account {riot_id!r} has no puuid.")
         return puuid
 
+    def get_riot_id_by_puuid(self, puuid: str) -> str:
+        """Resolve a puuid back to its Riot ID ("GameName#Tag") via the Account API."""
+        endpoint = f"/riot/account/v1/accounts/by-puuid/{puuid}"
+        try:
+            data = self._request("GET", endpoint, regional=True)
+        except NotFoundError as e:
+            raise RiotAPIError(f"Riot account for puuid {puuid!r} not found.") from e
+
+        game_name = data.get("gameName", "") if isinstance(data, dict) else ""
+        tag = data.get("tagLine", "") if isinstance(data, dict) else ""
+        if not game_name:
+            raise RiotAPIError(f"Riot account for puuid {puuid!r} has no game name.")
+        return f"{game_name}#{tag}" if tag else game_name
+
     def get_player_info(self, puuid: str) -> PlayerStats:
         """Return the ranked stats (rank + winrate + streak) for a player."""
         endpoint = f"/lol/league/v4/entries/by-puuid/{puuid}"

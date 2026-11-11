@@ -12,6 +12,7 @@ from .helpers import generate_match_info_response
 from .roster import (
     PlayerActionError,
     add_player,
+    ensure_riot_names,
     find_player,
     get_player_by_discord_id,
     list_players,
@@ -245,6 +246,11 @@ async def removeplayer(ctx, *args: str):
         await ctx.send("G beugé chef")
 
 
+def _riot_display(player: PlayerInfos) -> str:
+    """What `!players` shows for a Riot account: the in-game name, or the puuid head if unknown."""
+    return player["riot_name"] or f"`{player['puuid'][:16]}…`"
+
+
 @bot.command(name="players")
 async def listplayers(ctx):
     logger.info("Command !players invoked by %s", ctx.author)
@@ -258,9 +264,13 @@ async def listplayers(ctx):
         await ctx.send("Y'a personne enregistré là. Fais `!addplayer Pseudo <@discord> Riot#TAG`.")
         return
 
-    rows = "\n".join(f" {p['name']:<12} | <@{int(p['discord_id'])}> | `{p['puuid'][:16]}…`" for p in roster)
+    # Rows imported from the old .env layout only have a puuid, so resolve the in-game
+    # names we're missing before printing them.
+    roster = await run_blocking(ensure_riot_names, roster)
+
+    rows = "\n".join(f" {p['name']:<12} | <@{int(p['discord_id'])}> | {_riot_display(p)}" for p in roster)
     await ctx.send(
         f"📋 **{len(roster)} joueur(s) enregistrés**\n"
-        f"```\n Nom          | Discord                    | Riot puuid\n"
+        f"```\n Nom          | Discord                    | Riot\n"
         f"-----------------------------------------------------------\n{rows}\n```"
     )

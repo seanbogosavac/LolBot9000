@@ -38,6 +38,16 @@ DISCORD_SEAN = "123456789012345678"
 DISCORD_MAXIME = "987654321098765432"
 DISCORD_THOMAS = "555555555555555555"
 
+# The in-game Riot IDs behind those puuids, and the Riot IDs resolving to them.
+RIOT_NAME_SEAN = "SeanTheGoat#EUW"
+RIOT_NAME_MAXIME = "Maxime#EUW"
+RIOT_NAME_THOMAS = "Thomas#EUW"
+PUUID_TO_RIOT_NAME = {
+    PUUID_SEAN: RIOT_NAME_SEAN,
+    PUUID_MAXIME: RIOT_NAME_MAXIME,
+    PUUID_THOMAS: RIOT_NAME_THOMAS,
+}
+
 
 def run(coro):
     return asyncio.run(coro)
@@ -62,8 +72,8 @@ def repo(tmp_path):
 
 @pytest.fixture
 def seeded(repo):
-    repo.add("Sean", DISCORD_SEAN, PUUID_SEAN)
-    repo.add("Maxime", DISCORD_MAXIME, PUUID_MAXIME)
+    repo.add("Sean", DISCORD_SEAN, PUUID_SEAN, RIOT_NAME_SEAN)
+    repo.add("Maxime", DISCORD_MAXIME, PUUID_MAXIME, RIOT_NAME_MAXIME)
     return repo
 
 
@@ -78,7 +88,7 @@ def roster(tmp_path, monkeypatch):
 
 @pytest.fixture
 def fake_riot(monkeypatch):
-    """Stub the Riot client the bot shares: Riot ID resolution + ranked stats."""
+    """Stub the Riot client the bot shares: Riot ID both ways + ranked stats."""
     riot_ids = {"Maxime#EUW": PUUID_MAXIME, "Thomas#EUW": PUUID_THOMAS}
     stats = {
         PUUID_SEAN: {"rank": "GOLD II 45 LP", "winrate": 55, "streak": 3},
@@ -93,7 +103,15 @@ def fake_riot(monkeypatch):
             raise RiotAPIError(f"Riot account {riot_id!r} not found.")
         return riot_ids[riot_id]
 
+    def reverse(puuid):
+        from api import RiotAPIError
+
+        if puuid not in PUUID_TO_RIOT_NAME:
+            raise RiotAPIError(f"Riot account for puuid {puuid!r} not found.")
+        return PUUID_TO_RIOT_NAME[puuid]
+
     monkeypatch.setattr(config.riot_client, "get_puuid_by_riot_id", resolve)
+    monkeypatch.setattr(config.riot_client, "get_riot_id_by_puuid", reverse)
     monkeypatch.setattr(config.riot_client, "get_player_info", lambda puuid: stats[puuid])
     return riot_ids
 
@@ -134,8 +152,8 @@ def ctx():
 
 @pytest.fixture
 def seeded_roster(roster):
-    roster.add("Sean", DISCORD_SEAN, PUUID_SEAN)
-    roster.add("Maxime", DISCORD_MAXIME, PUUID_MAXIME)
+    roster.add("Sean", DISCORD_SEAN, PUUID_SEAN, RIOT_NAME_SEAN)
+    roster.add("Maxime", DISCORD_MAXIME, PUUID_MAXIME, RIOT_NAME_MAXIME)
     return roster
 
 

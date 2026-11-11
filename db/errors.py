@@ -4,6 +4,7 @@ __all__ = [
     "InvalidPlayerName",
     "InvalidDiscordId",
     "InvalidPuuid",
+    "InvalidRiotName",
     "NameAlreadyExists",
     "DiscordIdAlreadyExists",
     "PuuidAlreadyExists",
@@ -28,6 +29,10 @@ class InvalidDiscordId(DatabaseError):
 
 class InvalidPuuid(DatabaseError):
     """Raised when a Riot puuid doesn't look like a puuid at all."""
+
+
+class InvalidRiotName(DatabaseError):
+    """Raised when an in-game Riot ID doesn't look like a "GameName#TAG"."""
 
 
 class NameAlreadyExists(DatabaseError):

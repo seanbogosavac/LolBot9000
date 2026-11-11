@@ -18,6 +18,11 @@ MIGRATIONS: list[str] = [
 
     CREATE INDEX IF NOT EXISTS players_name_idx ON players (name COLLATE NOCASE);
     """,
+    """
+    -- The in-game Riot name ("GameName#TAG") of each player, so the roster can be shown
+    -- without printing raw puuids. NULL until we resolve it from the Account API.
+    ALTER TABLE players ADD COLUMN riot_name TEXT;
+    """,
 ]
 
 SCHEMA_VERSION = len(MIGRATIONS)
