@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 import bot.loops as loops
@@ -17,14 +19,14 @@ class FakeChannel:
 
 @pytest.fixture
 def channel(monkeypatch):
-    """A fake Discord channel in front of the loop, with the 60s wait removed."""
+    """A fake Discord channel in front of the loop, with the settle wait removed.
+
+    The wait is shortened through its constant rather than by patching
+    asyncio.sleep, which would affect every coroutine in the process.
+    """
     fake = FakeChannel()
     monkeypatch.setattr(loops.bot, "get_channel", lambda _id: fake)
-
-    async def no_wait(_seconds):
-        return None
-
-    monkeypatch.setattr(loops.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(loops, "POST_MATCH_SETTLE_SECONDS", 0)
     monkeypatch.setitem(config.CHAMPIONS, 157, "Yasuo")
     monkeypatch.setitem(config.CHAMPIONS, 412, "Leona")
     loops.ongoing_matches.clear()
@@ -162,3 +164,31 @@ def test_yannis_still_gets_the_shoutout(roster, channel, monkeypatch):
     monkeypatch.setattr(loops.riot_client, "get_current_match", lambda puuid: in_game(puuid))
     tick()
     assert "@everyone Yannis" in channel.sent[0][0]
+
+
+def test_the_loop_does_not_block_the_event_loop_while_riot_is_slow(seeded_roster, channel, monkeypatch):
+    """Regression: a rate-limit sleep used to freeze Discord heartbeats."""
+    import time
+
+    def slow_current(puuid):
+        time.sleep(0.05)  # stands in for the retry sleep in RiotClient._request
+        raise NoOngoingMatch("none")
+
+    monkeypatch.setattr(loops.riot_client, "get_current_match", slow_current)
+
+    async def scenario():
+        ticks = []
+
+        async def heartbeat():
+            while True:
+                await asyncio.sleep(0.01)
+                ticks.append(1)
+
+        hb = asyncio.create_task(heartbeat())
+        await loops.check_players_in_game.coro()
+        hb.cancel()
+        return ticks
+
+    ticks = run(scenario())
+    # 2 players x 50ms of blocking = 100ms; a frozen loop would yield ~0
+    assert len(ticks) > 5, f"event loop starved during Riot calls ({len(ticks)} ticks)"

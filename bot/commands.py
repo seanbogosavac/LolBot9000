@@ -5,6 +5,7 @@ from api import PlayerStats, RiotAPIError
 from config import riot_client
 from db import PlayerInfos
 
+from .api_worker import run_blocking
 from .bot_instance import bot
 from .exceptions import NoPlayerMentioned, UnknownPlayer
 from .helpers import generate_match_info_response
@@ -46,7 +47,7 @@ async def lol(ctx, target=None):
         mention = f"<@{int(player['discord_id'])}>"
 
         try:
-            info: PlayerStats = riot_client.get_player_info(player["puuid"])
+            info: PlayerStats = await run_blocking(riot_client.get_player_info, player["puuid"])
             rank, winrate, streak = info.get("rank", "Unranked"), info.get("winrate", 0), info.get("streak", 0)
 
             if rank == "Unranked":
@@ -106,7 +107,7 @@ async def leaderboard(ctx):
     stats = []
     for player in roster:
         try:
-            info = riot_client.get_player_info(player["puuid"])
+            info = await run_blocking(riot_client.get_player_info, player["puuid"])
             stats.append({"player": player, "rank": info.get("rank", "Unranked"), "winrate": info.get("winrate", 0)})
         except Exception as e:
             logger.warning("Failed to fetch stats for %s: %s", player["name"], e)
@@ -139,8 +140,9 @@ async def lastgame(ctx, target=None):
         player: PlayerInfos = await find_targeted_player(ctx, target)
 
         try:
-            last_match_id = riot_client.get_last_match_id(player["puuid"])
-            message, embed = generate_match_info_response(player, riot_client.get_match_data(last_match_id))
+            last_match_id = await run_blocking(riot_client.get_last_match_id, player["puuid"])
+            match_data = await run_blocking(riot_client.get_match_data, last_match_id)
+            message, embed = generate_match_info_response(player, match_data)
             await ctx.send(content=message, embed=embed)
         except RiotAPIError as e:
             logger.error("Riot API error fetching last match for %s: %s", target, e)
@@ -203,7 +205,7 @@ async def addplayer(ctx, *args: str):
         if discord_id is None:
             raise PlayerActionError("Tag la personne dont tu veux enregistrer le compte, ou donne son ID Discord.")
 
-        player = add_player(name, discord_id, riot_id)
+        player = await run_blocking(add_player, name, discord_id, riot_id)
         await ctx.send(f"J'ai enregistré **{player['name']}** (<@{int(player['discord_id'])}>) dans la base des joueurs.")
     except PlayerActionError as e:
         await ctx.send(str(e))
@@ -220,7 +222,7 @@ async def updateplayer(ctx, *args: str):
         if discord_id is None and riot_id is None:
             raise PlayerActionError("Donne-moi un nouveau Discord ou un nouveau compte Riot à lier.")
 
-        player = update_player(name, discord_id=discord_id, riot_identifier=riot_id)
+        player = await run_blocking(update_player, name, discord_id=discord_id, riot_identifier=riot_id)
         await ctx.send(f"Compte mis à jour pour **{player['name']}** (<@{int(player['discord_id'])}>).")
     except PlayerActionError as e:
         await ctx.send(str(e))
