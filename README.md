@@ -13,9 +13,15 @@ nano .env
 
 Launch container with :
 ```bash
-docker build -t lolbot9000 .
-docker compose up -d
+docker compose up -d --build
 ```
+
+Updating after a `git pull` :
+```bash
+docker compose up -d --build
+```
+The `--build` flag matters: plain `docker compose up -d` reuses the existing image and
+keeps running the old code without any warning.
 
 ## Players
 
