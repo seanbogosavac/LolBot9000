@@ -5,7 +5,7 @@ from typing import Dict, Optional
 import requests
 
 from api import RiotClient
-from db import PlayerRepository, seed_from_environment
+from db import PlayerRepository
 from logger import setup_logging
 
 setup_logging()
@@ -34,9 +34,6 @@ try:
 except Exception as e:
     logger.critical("Could not open the players database at %s: %s", PLAYERS_DB_PATH, e)
     raise
-
-# One-off import of the old .env-based roster, only when the table is still empty.
-seed_from_environment(players)
 
 riot_client = RiotClient(api_key=API_KEY)
 

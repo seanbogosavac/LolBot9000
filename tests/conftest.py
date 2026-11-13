@@ -155,16 +155,3 @@ def seeded_roster(roster):
     roster.add("Sean", DISCORD_SEAN, PUUID_SEAN, RIOT_NAME_SEAN)
     roster.add("Maxime", DISCORD_MAXIME, PUUID_MAXIME, RIOT_NAME_MAXIME)
     return roster
-
-
-@pytest.fixture
-def legacy_env():
-    """The pre-database .env layout, plus variables a seeder must ignore."""
-    return {
-        "RIOT_ID_SEAN": PUUID_SEAN,
-        "DISCORD_ID_SEAN": DISCORD_SEAN,
-        "RIOT_ID_MAXIME": PUUID_MAXIME,
-        "DISCORD_ID_MAXIME": DISCORD_MAXIME,
-        "RIOT_API_KEY": "irrelevant",
-        "DISCORD_CHANNEL": "111111111111111111",
-    }

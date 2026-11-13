@@ -153,12 +153,3 @@ def test_an_unopenable_database_reports_an_error(capsys, tmp_path):
     blocked.write_text("nope")
     assert run_cli("--db", str(blocked / "players.db"), "list") == 1
     assert "error:" in capsys.readouterr().err
-
-
-def test_seed_imports_the_legacy_environment(capsys, db, legacy_env, monkeypatch):
-    path, repo = db
-    for key, value in legacy_env.items():
-        monkeypatch.setenv(key, value)
-    assert run_cli("--db", path, "seed") == 0
-    assert "seeded 2" in capsys.readouterr().out
-    assert repo.get("Sean")["discord_id"] == DISCORD_SEAN

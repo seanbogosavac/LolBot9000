@@ -132,7 +132,7 @@ def test_service_keeps_typed_errors_available_for_callers(roster):
 
 
 def test_ensure_riot_names_fills_the_rows_imported_without_a_name(roster, fake_riot):
-    roster.add("Sean", DISCORD_SEAN, PUUID_SEAN)  # e.g. seeded from the old .env layout
+    roster.add("Sean", DISCORD_SEAN, PUUID_SEAN)  # e.g. a row that predates riot_name
     assert roster.get("Sean")["riot_name"] is None
 
     players = ensure_riot_names()

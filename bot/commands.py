@@ -264,7 +264,7 @@ async def listplayers(ctx):
         await ctx.send("Y'a personne enregistré là. Fais `!addplayer Pseudo <@discord> Riot#TAG`.")
         return
 
-    # Rows imported from the old .env layout only have a puuid, so resolve the in-game
+    # Rows that predate the riot_name column only have a puuid, so resolve the in-game
     # names we're missing before printing them.
     roster = await run_blocking(ensure_riot_names, roster)
 

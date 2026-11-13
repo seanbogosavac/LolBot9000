@@ -41,9 +41,9 @@ Register a player from Discord: the name, the Discord account, then the Riot acc
 
 `!players` shows each player's in-game Riot name (`Pseudo#TAG`) rather than their puuid. The
 name is stored in the `riot_name` column: it comes straight from the `Pseudo#TAG` you register,
-and rows that don't have one yet (the ones seeded from the old `.env`, or registered with a bare
-puuid) are resolved through the Riot Account API the next time `!players` runs — or up front with
-`manage_players.py syncnames`.
+and rows that don't have one yet (registered with a bare puuid, or added before the column
+existed) are resolved through the Riot Account API the next time `!players` runs — or up front
+with `manage_players.py syncnames`.
 
 The same works without Discord, from the host or inside the container:
 
@@ -53,6 +53,6 @@ docker compose exec lolbot python scripts/manage_players.py add Maxou 1234567890
 docker compose exec lolbot python scripts/manage_players.py syncnames
 ```
 
-On the first start, if the table is empty, the old `DISCORD_ID_*` / `RIOT_ID_*` variables still
-in the environment are imported automatically. After that they are ignored and can be dropped
-from `.env`.
+The database is the only source of the roster: the old `DISCORD_ID_*` / `RIOT_ID_*` variables
+are no longer read, and a fresh (or wiped) `players-db` volume starts empty. Re-register the
+players with `!addplayer`, or with `manage_players.py add` straight from the host.

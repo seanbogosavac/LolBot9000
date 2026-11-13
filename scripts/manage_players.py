@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from api import RiotAPIError, RiotClient
-from db import DatabaseError, PlayerInfos, PlayerRepository, seed_from_environment
+from db import DatabaseError, PlayerInfos, PlayerRepository
 
 
 def resolve_puuid(identifier: str, api_key: str | None) -> str:
@@ -100,7 +100,6 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("list", help="show every registered player")
     sub.add_parser("syncnames", help="fill in the in-game Riot name of players that have none")
-    sub.add_parser("seed", help="import the legacy DISCORD_ID_*/RIOT_ID_* env vars when the table is empty")
 
     args = parser.parse_args(argv)
     db_path = args.db or str(Path(__file__).resolve().parent.parent / "data" / "players.db")
@@ -125,8 +124,6 @@ def main(argv: list[str] | None = None) -> int:
                 riot_name = resolve_riot_name(args.riot_id) if args.riot_id else None
                 player = repo.update(args.name, discord_id=args.discord_id, puuid=puuid, riot_name=riot_name)
                 print(f"updated {player['name']} (riot={player['riot_name'] or 'unknown'}, discord_id={player['discord_id']}, puuid={player['puuid']})")
-            elif args.action == "seed":
-                print(f"seeded {seed_from_environment(repo)} player(s)")
             elif args.action == "syncnames":
                 print(f"resolved {sync_riot_names(repo, api_key)} in-game name(s)")
             else:

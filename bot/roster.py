@@ -139,8 +139,9 @@ def list_players() -> list[PlayerInfos]:
 def ensure_riot_names(roster: list[PlayerInfos] | None = None) -> list[PlayerInfos]:
     """Fill in the in-game Riot name of the players that don't have one yet.
 
-    Rows imported from the old `.env` layout (and anything registered while Riot was
-    unreachable) only carry a puuid, so we resolve the missing names once and store them.
+    Rows that predate the `riot_name` column (and anything registered from a bare puuid
+    while Riot was unreachable) only carry a puuid, so we resolve the missing names once and
+    store them.
     A player Riot cannot be reached for is left without a name — the caller falls back to
     showing something — rather than failing the whole roster.
     """

@@ -17,7 +17,6 @@ from .errors import (
 )
 from .migrations import SCHEMA_VERSION
 from .repository import PlayerRepository
-from .seed import legacy_players_from_environment, seed_from_environment
 from .types import PlayerInfos
 
 __all__ = [
@@ -33,6 +32,4 @@ __all__ = [
     "DiscordIdAlreadyExists",
     "PuuidAlreadyExists",
     "SCHEMA_VERSION",
-    "seed_from_environment",
-    "legacy_players_from_environment",
 ]
