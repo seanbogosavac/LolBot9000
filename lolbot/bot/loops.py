@@ -3,9 +3,10 @@ import logging
 from discord.ext import tasks
 from discord import TextChannel
 
-from api import OngoingMatch, NoOngoingMatch, RiotAPIError
-from config import DISCORD_CHANNEL, CHAMPIONS, riot_client
-from db import PlayerInfos
+from lolbot import services
+from lolbot.api import OngoingMatch, NoOngoingMatch, RiotAPIError
+from lolbot.settings import DISCORD_CHANNEL
+from lolbot.db import PlayerInfos
 
 from .api_worker import run_blocking
 from .bot_instance import bot
@@ -32,7 +33,7 @@ GAME_TYPE_MESSAGES = {
 
 def generate_in_game_message(player_info: PlayerInfos, match_data: OngoingMatch) -> str:
     idx = match_data["players"].index(player_info["puuid"])
-    champion = CHAMPIONS.get(match_data["champions"][idx], "un champion inconnu")
+    champion = services.get_champions().get(match_data["champions"][idx], "un champion inconnu")
     mention = "OMG OMG @everyone Yannis" if player_info["name"] == "Yannis" else player_info["name"]
     game_type = match_data.get("gameType", "")
     builder = GAME_TYPE_MESSAGES.get(game_type)
@@ -71,7 +72,7 @@ async def check_players_in_game() -> None:
         current_match: OngoingMatch | None = None
 
         try:
-            current_match = await run_blocking(riot_client.get_current_match, puuid)
+            current_match = await run_blocking(services.get_riot_client().get_current_match, puuid)
         except NoOngoingMatch:
             logger.debug("No ongoing match for %s", player_name)
         except RiotAPIError as e:
@@ -90,8 +91,8 @@ async def check_players_in_game() -> None:
 
             if match_id != 0:
                 try:
-                    last_match_id = await run_blocking(riot_client.get_last_match_id, puuid)
-                    match_data = await run_blocking(riot_client.get_match_data, last_match_id)
+                    last_match_id = await run_blocking(services.get_riot_client().get_last_match_id, puuid)
+                    match_data = await run_blocking(services.get_riot_client().get_match_data, last_match_id)
                     message, embed = generate_match_info_response(player_info, match_data)
                     await channel.send(content=message, embed=embed)
                     logger.info("Sent post-match info for %s (lastMatchId: %s)", player_name, last_match_id)

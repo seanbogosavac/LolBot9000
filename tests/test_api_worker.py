@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from bot.api_worker import run_blocking
+from lolbot.bot.api_worker import run_blocking
 
 
 def test_blocking_call_runs_off_the_event_loop():

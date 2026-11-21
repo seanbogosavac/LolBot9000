@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lolbot9000"
+version = "0.1.0"
+description = "Discord bot that announces League of Legends games"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "discord.py==2.7.1",
+    "requests==2.34.2",
+]
+
+[project.optional-dependencies]
+# Development-only dependencies (the image does not need them)
+dev = [
+    "pytest==9.2.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["lolbot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning:discord.ext.commands.core",
+]

@@ -1,7 +1,7 @@
 import pytest
 
-from db import PlayerRepository
-from scripts.manage_players import main
+from lolbot.db import PlayerRepository
+from lolbot.manage_players import main
 from tests.conftest import (
     DISCORD_MAXIME,
     DISCORD_SEAN,
@@ -42,7 +42,7 @@ def test_add_accepts_a_raw_puuid_and_prints_the_row(capsys, db):
 def test_add_stores_the_in_game_name_of_a_riot_id(capsys, db, monkeypatch):
     path, repo = db
     monkeypatch.setenv("RIOT_API_KEY", "secret")
-    monkeypatch.setattr("scripts.manage_players.RiotClient.get_puuid_by_riot_id",
+    monkeypatch.setattr("lolbot.manage_players.RiotClient.get_puuid_by_riot_id",
                         lambda self, riot_id: PUUID_MAXIME)
     assert run_cli("--db", path, "add", "Max", DISCORD_MAXIME, "Maxime#EUW") == 0
     assert repo.get("Max")["riot_name"] == RIOT_NAME_MAXIME
@@ -52,7 +52,7 @@ def test_add_stores_the_in_game_name_of_a_riot_id(capsys, db, monkeypatch):
 def test_add_resolves_a_riot_id_using_the_api_key(capsys, db, monkeypatch):
     path, repo = db
     monkeypatch.setenv("RIOT_API_KEY", "secret")
-    monkeypatch.setattr("scripts.manage_players.RiotClient.get_puuid_by_riot_id",
+    monkeypatch.setattr("lolbot.manage_players.RiotClient.get_puuid_by_riot_id",
                         lambda self, riot_id: PUUID_MAXIME)
     assert run_cli("--db", path, "add", "Max", f"<@{DISCORD_MAXIME}>", "Maxime#EUW") == 0
     assert repo.get("Max")["puuid"] == PUUID_MAXIME
@@ -85,7 +85,7 @@ def test_syncnames_resolves_the_missing_in_game_names(capsys, db, monkeypatch):
     path, repo = db
     repo.add("Sean", DISCORD_SEAN, PUUID_SEAN)
     monkeypatch.setenv("RIOT_API_KEY", "secret")
-    monkeypatch.setattr("scripts.manage_players.RiotClient.get_riot_id_by_puuid",
+    monkeypatch.setattr("lolbot.manage_players.RiotClient.get_riot_id_by_puuid",
                         lambda self, puuid: RIOT_NAME_SEAN)
     assert run_cli("--db", path, "syncnames") == 0
     assert "resolved 1" in capsys.readouterr().out
@@ -106,11 +106,11 @@ def test_syncnames_reports_a_name_it_cannot_resolve(capsys, db, monkeypatch):
     monkeypatch.setenv("RIOT_API_KEY", "secret")
 
     def failing(self, puuid):
-        from api import RiotAPIError
+        from lolbot.api import RiotAPIError
 
         raise RiotAPIError("unreachable")
 
-    monkeypatch.setattr("scripts.manage_players.RiotClient.get_riot_id_by_puuid", failing)
+    monkeypatch.setattr("lolbot.manage_players.RiotClient.get_riot_id_by_puuid", failing)
     assert run_cli("--db", path, "syncnames") == 0
     captured = capsys.readouterr()
     assert "resolved 0" in captured.out

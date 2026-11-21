@@ -1,8 +1,7 @@
 import pytest
 
-import config
-from api import RiotAPIError
-from bot.roster import (
+from lolbot.api import RiotAPIError
+from lolbot.bot.roster import (
     PlayerActionError,
     add_player,
     ensure_riot_names,
@@ -15,7 +14,7 @@ from bot.roster import (
     riot_id_to_puuid,
     update_player,
 )
-from db import PlayerNotFound
+from lolbot.db import PlayerNotFound
 from tests.conftest import (
     DISCORD_MAXIME,
     DISCORD_SEAN,
@@ -140,17 +139,17 @@ def test_ensure_riot_names_fills_the_rows_imported_without_a_name(roster, fake_r
     assert roster.get("Sean")["riot_name"] == RIOT_NAME_SEAN
 
 
-def test_ensure_riot_names_leaves_known_names_alone(roster, fake_riot, monkeypatch):
+def test_ensure_riot_names_leaves_known_names_alone(roster, fake_riot, monkeypatch, riot_client):
     roster.add("Sean", DISCORD_SEAN, PUUID_SEAN, RIOT_NAME_SEAN)
 
     def no_call(puuid):
         raise AssertionError("must not re-resolve a player that already has a name")
 
-    monkeypatch.setattr(config.riot_client, "get_riot_id_by_puuid", no_call)
+    monkeypatch.setattr(riot_client, "get_riot_id_by_puuid", no_call)
     assert ensure_riot_names()[0]["riot_name"] == RIOT_NAME_SEAN
 
 
-def test_ensure_riot_names_keeps_going_when_riot_cannot_be_reached(roster, fake_riot, monkeypatch):
+def test_ensure_riot_names_keeps_going_when_riot_cannot_be_reached(roster, fake_riot, monkeypatch, riot_client):
     roster.add("Sean", DISCORD_SEAN, PUUID_SEAN)
     roster.add("Maxime", DISCORD_MAXIME, PUUID_MAXIME)
 
@@ -159,6 +158,6 @@ def test_ensure_riot_names_keeps_going_when_riot_cannot_be_reached(roster, fake_
             raise RiotAPIError("unreachable")
         return RIOT_NAME_SEAN
 
-    monkeypatch.setattr(config.riot_client, "get_riot_id_by_puuid", only_sean)
+    monkeypatch.setattr(riot_client, "get_riot_id_by_puuid", only_sean)
     players = {p["name"]: p["riot_name"] for p in ensure_riot_names()}
     assert players == {"Sean": RIOT_NAME_SEAN, "Maxime": None}

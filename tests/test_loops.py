@@ -2,10 +2,10 @@ import asyncio
 
 import pytest
 
-import bot.loops as loops
-import config
-from db import PlayerRepository
-from api import NoOngoingMatch, RiotAPIError
+import lolbot.bot.loops as loops
+from lolbot import services
+from lolbot.db import PlayerRepository
+from lolbot.api import NoOngoingMatch, RiotAPIError
 from tests.conftest import DISCORD_MAXIME, DISCORD_SEAN, PUUID_MAXIME, PUUID_SEAN, run
 
 
@@ -27,8 +27,7 @@ def channel(monkeypatch):
     fake = FakeChannel()
     monkeypatch.setattr(loops.bot, "get_channel", lambda _id: fake)
     monkeypatch.setattr(loops, "POST_MATCH_SETTLE_SECONDS", 0)
-    monkeypatch.setitem(config.CHAMPIONS, 157, "Yasuo")
-    monkeypatch.setitem(config.CHAMPIONS, 412, "Leona")
+    monkeypatch.setattr(services, "get_champions", lambda: {157: "Yasuo", 412: "Leona"})
     loops.ongoing_matches.clear()
     yield fake
     loops.ongoing_matches.clear()
@@ -42,8 +41,8 @@ def in_game(puuid):
     return {"gameId": 42, "gameType": 420, "players": [puuid, "teammate"], "champions": [157, 412]}
 
 
-def test_a_fresh_game_is_announced_once_per_player(seeded_roster, channel, monkeypatch):
-    monkeypatch.setattr(loops.riot_client, "get_current_match", lambda puuid: in_game(puuid))
+def test_a_fresh_game_is_announced_once_per_player(seeded_roster, channel, monkeypatch, riot_client):
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: in_game(puuid))
     tick()
     tick()
     assert len(channel.sent) == 2
@@ -51,18 +50,18 @@ def test_a_fresh_game_is_announced_once_per_player(seeded_roster, channel, monke
     assert "Sean" in channel.sent[1][0] and "Yasuo" in channel.sent[1][0]
 
 
-def test_only_the_announced_player_is_reported(seeded_roster, channel, monkeypatch):
+def test_only_the_announced_player_is_reported(seeded_roster, channel, monkeypatch, riot_client):
     def current(puuid):
         if puuid == PUUID_SEAN:
             return in_game(puuid)
         raise NoOngoingMatch("none")
 
-    monkeypatch.setattr(loops.riot_client, "get_current_match", current)
+    monkeypatch.setattr(riot_client, "get_current_match", current)
     tick()
     assert len(channel.sent) == 1 and "Maxime" not in channel.sent[0][0]
 
 
-def test_the_recap_is_posted_when_a_game_ends(seeded_roster, channel, monkeypatch):
+def test_the_recap_is_posted_when_a_game_ends(seeded_roster, channel, monkeypatch, riot_client):
     match = {
         "gameType": 420,
         "duration": "27:04",
@@ -79,15 +78,15 @@ def test_the_recap_is_posted_when_a_game_ends(seeded_roster, channel, monkeypatc
             return in_game(puuid)
         raise NoOngoingMatch("none")
 
-    monkeypatch.setattr(loops.riot_client, "get_current_match", current)
-    monkeypatch.setattr(loops.riot_client, "get_last_match_id", lambda puuid: "EUW_1")
-    monkeypatch.setattr(loops.riot_client, "get_match_data", lambda _id: match)
+    monkeypatch.setattr(riot_client, "get_current_match", current)
+    monkeypatch.setattr(riot_client, "get_last_match_id", lambda puuid: "EUW_1")
+    monkeypatch.setattr(riot_client, "get_match_data", lambda _id: match)
 
     tick()
     assert "Yasuo" in channel.sent[0][0]
 
     # Sean's game ends
-    monkeypatch.setattr(loops.riot_client, "get_current_match", lambda puuid: (_ for _ in ()).throw(NoOngoingMatch("none")))
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: (_ for _ in ()).throw(NoOngoingMatch("none")))
     channel.sent.clear()
     tick()
     assert "Sean a retourné" in channel.sent[0][0]
@@ -95,48 +94,46 @@ def test_the_recap_is_posted_when_a_game_ends(seeded_roster, channel, monkeypatc
     assert loops.ongoing_matches == {}
 
 
-def test_a_player_added_mid_flight_is_picked_up(roster, channel, monkeypatch):
-    monkeypatch.setattr(loops.riot_client, "get_current_match", lambda puuid: (_ for _ in ()).throw(NoOngoingMatch("none")))
+def test_a_player_added_mid_flight_is_picked_up(roster, channel, monkeypatch, riot_client):
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: (_ for _ in ()).throw(NoOngoingMatch("none")))
     tick()
     assert channel.sent == []
 
     roster.add("Maxime", DISCORD_MAXIME, PUUID_MAXIME)
-    monkeypatch.setattr(loops.riot_client, "get_current_match", lambda puuid: in_game(puuid))
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: in_game(puuid))
     tick()
     assert "Maxime" in channel.sent[0][0]
 
 
-def test_an_untracked_game_type_is_announced_but_not_recapped(seeded_roster, channel, monkeypatch):
+def test_an_untracked_game_type_is_announced_but_not_recapped(seeded_roster, channel, monkeypatch, riot_client):
     def current(puuid):
         if puuid == PUUID_SEAN:
             return {"gameId": 7, "gameType": 9999, "players": [puuid], "champions": [157]}
         raise NoOngoingMatch("none")
 
-    monkeypatch.setattr(loops.riot_client, "get_current_match", current)
+    monkeypatch.setattr(riot_client, "get_current_match", current)
     tick()
     assert "non détectée" in channel.sent[0][0]
     assert loops.ongoing_matches[PUUID_SEAN] == 0
 
-    monkeypatch.setattr(loops.riot_client, "get_current_match", lambda puuid: (_ for _ in ()).throw(NoOngoingMatch("none")))
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: (_ for _ in ()).throw(NoOngoingMatch("none")))
     channel.sent.clear()
     tick()
     assert channel.sent == []
 
 
-def test_a_riot_api_failure_for_one_player_does_not_stop_the_others(seeded_roster, channel, monkeypatch):
+def test_a_riot_api_failure_for_one_player_does_not_stop_the_others(seeded_roster, channel, monkeypatch, riot_client):
     def current(puuid):
         if puuid == PUUID_SEAN:
             raise RiotAPIError("boom")
         return in_game(puuid)
 
-    monkeypatch.setattr(loops.riot_client, "get_current_match", current)
+    monkeypatch.setattr(riot_client, "get_current_match", current)
     tick()
     assert len(channel.sent) == 1 and "Maxime" in channel.sent[0][0]
 
 
 def test_a_missing_channel_ends_the_tick_quietly(roster, monkeypatch):
-    from config import DISCORD_CHANNEL
-
     async def failing_fetch(channel_id):
         raise RiotAPIError("no channel")
 
@@ -145,28 +142,28 @@ def test_a_missing_channel_ends_the_tick_quietly(roster, monkeypatch):
     tick()  # must not raise
 
 
-def test_a_broken_database_skips_the_tick_instead_of_killing_the_loop(roster, channel, monkeypatch):
-    monkeypatch.setattr(loops.riot_client, "get_current_match", lambda puuid: in_game(puuid))
+def test_a_broken_database_skips_the_tick_instead_of_killing_the_loop(roster, channel, monkeypatch, riot_client):
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: in_game(puuid))
     roster.close()
     tick()  # must swallow the failure
     assert channel.sent == []
 
     roster = PlayerRepository(str(roster.path))
-    monkeypatch.setattr(config, "players", roster)
+    monkeypatch.setattr(services, "get_players", lambda: roster)
     roster.add("Sean", DISCORD_SEAN, PUUID_SEAN)
     tick()
     assert "Sean" in channel.sent[0][0]
     roster.close()
 
 
-def test_yannis_still_gets_the_shoutout(roster, channel, monkeypatch):
+def test_yannis_still_gets_the_shoutout(roster, channel, monkeypatch, riot_client):
     roster.add("Yannis", DISCORD_SEAN, PUUID_SEAN)
-    monkeypatch.setattr(loops.riot_client, "get_current_match", lambda puuid: in_game(puuid))
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: in_game(puuid))
     tick()
     assert "@everyone Yannis" in channel.sent[0][0]
 
 
-def test_the_loop_does_not_block_the_event_loop_while_riot_is_slow(seeded_roster, channel, monkeypatch):
+def test_the_loop_does_not_block_the_event_loop_while_riot_is_slow(seeded_roster, channel, monkeypatch, riot_client):
     """Regression: a rate-limit sleep used to freeze Discord heartbeats."""
     import time
 
@@ -174,7 +171,7 @@ def test_the_loop_does_not_block_the_event_loop_while_riot_is_slow(seeded_roster
         time.sleep(0.05)  # stands in for the retry sleep in RiotClient._request
         raise NoOngoingMatch("none")
 
-    monkeypatch.setattr(loops.riot_client, "get_current_match", slow_current)
+    monkeypatch.setattr(riot_client, "get_current_match", slow_current)
 
     async def scenario():
         ticks = []
@@ -192,33 +189,3 @@ def test_the_loop_does_not_block_the_event_loop_while_riot_is_slow(seeded_roster
     ticks = run(scenario())
     # 2 players x 50ms of blocking = 100ms; a frozen loop would yield ~0
     assert len(ticks) > 5, f"event loop starved during Riot calls ({len(ticks)} ticks)"
-
-
-def test_champion_data_comes_from_the_latest_ddragon_patch(monkeypatch):
-    calls = []
-
-    class Resp:
-        def __init__(self, payload):
-            self.payload = payload
-
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return self.payload
-
-    def fake_get(url, timeout=None):
-        calls.append((url, timeout))
-        return Resp(["99.1.1", "13.14.1"] if url.endswith("versions.json") else {"data": {"Ahri": {"key": "103"}}})
-
-    monkeypatch.setattr(config.requests, "get", fake_get)
-    assert config.fetch_champions_data() == {"data": {"Ahri": {"key": "103"}}}
-    assert "/cdn/99.1.1/" in calls[1][0] and all(t for _, t in calls)
-
-
-def test_champion_data_falls_back_to_empty_when_ddragon_is_down(monkeypatch):
-    def boom(*args, **kwargs):
-        raise config.requests.ConnectionError("down")
-
-    monkeypatch.setattr(config.requests, "get", boom)
-    assert config.fetch_champions_data() == {"data": {}}

@@ -1,6 +1,6 @@
 import pytest
 
-from api import RiotAPIError, RiotClient
+from lolbot.api import RiotAPIError, RiotClient
 from tests.conftest import PUUID_SEAN, RIOT_NAME_SEAN
 
 

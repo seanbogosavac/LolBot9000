@@ -2,21 +2,19 @@
 
 Works without Discord, which is handy inside the container:
 
-    docker compose exec lolbot python scripts/manage_players.py list
-    docker compose exec lolbot python scripts/manage_players.py add Maxime 123456789012345678 Pseudo#EUW
-    docker compose exec lolbot python scripts/manage_players.py syncnames
+    docker compose exec lolbot python -m lolbot.manage_players list
+    docker compose exec lolbot python -m lolbot.manage_players add Maxime 123456789012345678 Pseudo#EUW
+    docker compose exec lolbot python -m lolbot.manage_players syncnames
 
 Run it with the same PLAYERS_DB the bot uses, otherwise you'll be editing another file.
 """
 import argparse
 import os
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from api import RiotAPIError, RiotClient
-from db import DatabaseError, PlayerInfos, PlayerRepository
+from lolbot.api import RiotAPIError, RiotClient
+from lolbot.db import DatabaseError, PlayerInfos, PlayerRepository
+from lolbot.settings import PLAYERS_DB_PATH
 
 
 def resolve_puuid(identifier: str, api_key: str | None) -> str:
@@ -82,7 +80,7 @@ def format_roster(roster: list[PlayerInfos]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--db", default=os.getenv("PLAYERS_DB"), help="path of the SQLite database (default: the bot's)")
+    parser.add_argument("--db", help="path of the SQLite database (default: the bot's)")
     sub = parser.add_subparsers(dest="action", required=True)
 
     p_add = sub.add_parser("add", help="register a player")
@@ -102,10 +100,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("syncnames", help="fill in the in-game Riot name of players that have none")
 
     args = parser.parse_args(argv)
-    db_path = args.db or str(Path(__file__).resolve().parent.parent / "data" / "players.db")
-
     try:
-        repo = PlayerRepository(db_path)
+        repo = PlayerRepository(args.db or PLAYERS_DB_PATH)
     except DatabaseError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

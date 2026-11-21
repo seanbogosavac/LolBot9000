@@ -1,38 +1,9 @@
 import asyncio
-import os
-import sys
-import tempfile
-from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-# config.py opens the players database and fetches the champion list from Data Dragon at
-# import time, so both are pointed at local fixtures before anything imports it.
-os.environ.setdefault("PLAYERS_DB", str(Path(tempfile.mkdtemp()) / "players.db"))
-
-import requests  # noqa: E402
-
-_real_get = requests.get
-
-
-class _OfflineResponse:
-    def raise_for_status(self):
-        raise requests.ConnectionError("offline in tests")
-
-    def json(self):
-        return {"data": {}}
-
-
-requests.get = lambda *args, **kwargs: _OfflineResponse()
-try:
-    import config  # noqa: E402,F401
-finally:
-    requests.get = _real_get
-
-from db import PlayerRepository  # noqa: E402
+from lolbot import services
+from lolbot.db import PlayerRepository
 
 PUUID_SEAN = "AbCdEf1234567890_-abcdef1234567890"
 PUUID_MAXIME = "zzzz12345678901234567890abcdefABCD"
@@ -82,15 +53,21 @@ def seeded(repo):
 
 @pytest.fixture
 def roster(tmp_path, monkeypatch):
-    """A clean database behind the `config.players` the bot reads from."""
+    """A clean database behind the `services.get_players()` the bot reads from."""
     repository = PlayerRepository(tmp_path / "bot-players.db")
-    monkeypatch.setattr(config, "players", repository)
+    monkeypatch.setattr(services, "get_players", lambda: repository)
     yield repository
     repository.close()
 
 
 @pytest.fixture
-def fake_riot(monkeypatch):
+def riot_client():
+    """The Riot client the bot shares, for tests to stub methods on."""
+    return services.get_riot_client()
+
+
+@pytest.fixture
+def fake_riot(monkeypatch, riot_client):
     """Stub the Riot client the bot shares: Riot ID both ways + ranked stats."""
     riot_ids = {"Maxime#EUW": PUUID_MAXIME, "Thomas#EUW": PUUID_THOMAS}
     stats = {
@@ -101,21 +78,21 @@ def fake_riot(monkeypatch):
 
     def resolve(riot_id):
         if riot_id not in riot_ids:
-            from api import RiotAPIError
+            from lolbot.api import RiotAPIError
 
             raise RiotAPIError(f"Riot account {riot_id!r} not found.")
         return riot_ids[riot_id]
 
     def reverse(puuid):
-        from api import RiotAPIError
+        from lolbot.api import RiotAPIError
 
         if puuid not in PUUID_TO_RIOT_NAME:
             raise RiotAPIError(f"Riot account for puuid {puuid!r} not found.")
         return PUUID_TO_RIOT_NAME[puuid]
 
-    monkeypatch.setattr(config.riot_client, "get_puuid_by_riot_id", resolve)
-    monkeypatch.setattr(config.riot_client, "get_riot_id_by_puuid", reverse)
-    monkeypatch.setattr(config.riot_client, "get_player_info", lambda puuid: stats[puuid])
+    monkeypatch.setattr(riot_client, "get_puuid_by_riot_id", resolve)
+    monkeypatch.setattr(riot_client, "get_riot_id_by_puuid", reverse)
+    monkeypatch.setattr(riot_client, "get_player_info", lambda puuid: stats[puuid])
     return riot_ids
 
 

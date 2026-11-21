@@ -2,8 +2,8 @@ import sqlite3
 
 import pytest
 
-from db import PlayerRepository
-from db.migrations import MIGRATIONS, Migration, _apply, apply_migrations
+from lolbot.db import PlayerRepository
+from lolbot.db.migrations import MIGRATIONS, Migration, _apply, apply_migrations
 from tests.conftest import PUUID_SEAN, RIOT_NAME_SEAN
 
 V1_SCHEMA = """

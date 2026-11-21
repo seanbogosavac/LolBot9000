@@ -4,7 +4,7 @@ from typing import Any
 from urllib.parse import quote
 import requests
 
-from api.exceptions import (
+from lolbot.api.exceptions import (
     RiotAPIError,
     NoOngoingMatch,
     AuthenticationError,
@@ -12,7 +12,7 @@ from api.exceptions import (
     NotFoundError,
     RiotServerError,
 )
-from api.types import PlayerStats, Participant, Match, OngoingMatch
+from lolbot.api.types import PlayerStats, Participant, Match, OngoingMatch
 
 logger = logging.getLogger(__name__)
 
