@@ -1,0 +1,26 @@
+name: Deploy
+
+# Runs on a self-hosted runner on the homelab host `schroeder`, which has a
+# local clone of this repo at /home/snoopy/LolBot9000. On every push to
+# `master` it runs the pytest suite as a gate, then rebuilds the image and
+# recreates the `lolbot` container.
+#
+# SECURITY: this repo is public. A self-hosted runner on a public repo must
+# NEVER be triggered by `pull_request` (fork PRs could run arbitrary code on
+# the host). Only `push` to the protected default branch and manual dispatch
+# are enabled, so only repo collaborators can trigger a deploy.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-LolBot9000
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, schroeder, lolbot]
+    steps:
+      - name: Deploy LolBot9000
+        run: /home/snoopy/bin/deploy-bot.sh LolBot9000 master
