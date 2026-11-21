@@ -19,6 +19,9 @@ _real_get = requests.get
 
 
 class _OfflineResponse:
+    def raise_for_status(self):
+        raise requests.ConnectionError("offline in tests")
+
     def json(self):
         return {"data": {}}
 

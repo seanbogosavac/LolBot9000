@@ -192,3 +192,33 @@ def test_the_loop_does_not_block_the_event_loop_while_riot_is_slow(seeded_roster
     ticks = run(scenario())
     # 2 players x 50ms of blocking = 100ms; a frozen loop would yield ~0
     assert len(ticks) > 5, f"event loop starved during Riot calls ({len(ticks)} ticks)"
+
+
+def test_champion_data_comes_from_the_latest_ddragon_patch(monkeypatch):
+    calls = []
+
+    class Resp:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self.payload
+
+    def fake_get(url, timeout=None):
+        calls.append((url, timeout))
+        return Resp(["99.1.1", "13.14.1"] if url.endswith("versions.json") else {"data": {"Ahri": {"key": "103"}}})
+
+    monkeypatch.setattr(config.requests, "get", fake_get)
+    assert config.fetch_champions_data() == {"data": {"Ahri": {"key": "103"}}}
+    assert "/cdn/99.1.1/" in calls[1][0] and all(t for _, t in calls)
+
+
+def test_champion_data_falls_back_to_empty_when_ddragon_is_down(monkeypatch):
+    def boom(*args, **kwargs):
+        raise config.requests.ConnectionError("down")
+
+    monkeypatch.setattr(config.requests, "get", boom)
+    assert config.fetch_champions_data() == {"data": {}}
