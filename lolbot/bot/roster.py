@@ -1,8 +1,8 @@
 import logging
 
-import config
-from api import RiotAPIError
-from db import (
+from lolbot import services
+from lolbot.api import RiotAPIError
+from lolbot.db import (
     DatabaseError,
     DiscordIdAlreadyExists,
     InvalidDiscordId,
@@ -54,12 +54,12 @@ def riot_id_to_puuid(riot_identifier: str) -> str:
     identifier = riot_identifier.strip().lstrip("@")
     if "#" not in identifier:
         return identifier  # already a puuid
-    return config.riot_client.get_puuid_by_riot_id(identifier)
+    return services.get_riot_client().get_puuid_by_riot_id(identifier)
 
 
 def puuid_to_riot_name(puuid: str) -> str:
     """Return the in-game Riot ID ("GameName#Tag") of a puuid."""
-    return config.riot_client.get_riot_id_by_puuid(puuid)
+    return services.get_riot_client().get_riot_id_by_puuid(puuid)
 
 
 def riot_name_of(riot_identifier: str) -> str | None:
@@ -87,7 +87,7 @@ def add_player(name: str, discord_id: str, riot_identifier: str) -> PlayerInfos:
     riot_name = riot_name_of(riot_identifier)
 
     try:
-        return config.players.add(name, discord_id, puuid, riot_name)
+        return services.get_players().add(name, discord_id, puuid, riot_name)
     except USER_FACING_ERRORS as e:
         raise PlayerActionError(str(e)) from e
     except DatabaseError as e:
@@ -110,7 +110,7 @@ def update_player(name: str, *, discord_id: str | None = None, riot_identifier: 
         riot_name = riot_name_of(riot_identifier) or ""
 
     try:
-        return config.players.update(name, discord_id=discord_id, puuid=puuid, riot_name=riot_name)
+        return services.get_players().update(name, discord_id=discord_id, puuid=puuid, riot_name=riot_name)
     except PlayerNotFound as e:
         raise PlayerActionError(f"**{name}** n'est pas dans la liste des joueurs.") from e
     except USER_FACING_ERRORS as e:
@@ -123,7 +123,7 @@ def update_player(name: str, *, discord_id: str | None = None, riot_identifier: 
 def remove_player(name: str) -> PlayerInfos:
     """Unregister a player."""
     try:
-        return config.players.remove(name)
+        return services.get_players().remove(name)
     except PlayerNotFound as e:
         raise PlayerActionError(f"**{name}** n'est pas dans la liste des joueurs.") from e
     except DatabaseError as e:
@@ -133,7 +133,7 @@ def remove_player(name: str) -> PlayerInfos:
 
 def list_players() -> list[PlayerInfos]:
     """Return every registered player, ordered by name."""
-    return _read(config.players.all)
+    return _read(lambda: services.get_players().all())
 
 
 def ensure_riot_names(roster: list[PlayerInfos] | None = None) -> list[PlayerInfos]:
@@ -158,7 +158,7 @@ def ensure_riot_names(roster: list[PlayerInfos] | None = None) -> list[PlayerInf
             continue
 
         try:
-            config.players.update(player["name"], riot_name=riot_name)
+            services.get_players().update(player["name"], riot_name=riot_name)
         except (PlayerNotFound, DatabaseError) as e:
             logger.warning("Could not store the in-game name of %s: %s", player["name"], e)
             continue
@@ -170,7 +170,7 @@ def ensure_riot_names(roster: list[PlayerInfos] | None = None) -> list[PlayerInf
 
 def get_player(name: str) -> PlayerInfos:
     """Return the player registered under `name`, or raise a channel-ready error."""
-    player = _read(lambda: config.players.find(name))
+    player = _read(lambda: services.get_players().find(name))
     if player is None:
         raise PlayerActionError(f"C'est qui **{name}** ?")
     return player
@@ -178,12 +178,12 @@ def get_player(name: str) -> PlayerInfos:
 
 def get_player_by_discord_id(discord_id: str) -> PlayerInfos | None:
     """Return the player linked to a Discord account, if any."""
-    return _read(lambda: config.players.find(discord_id, by="discord_id"))
+    return _read(lambda: services.get_players().find(discord_id, by="discord_id"))
 
 
 def find_player(name: str) -> PlayerInfos | None:
     """Return the player registered under `name`, or None if unknown."""
-    return _read(lambda: config.players.find(name))
+    return _read(lambda: services.get_players().find(name))
 
 
 def _read(operation):

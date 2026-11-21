@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 
-from db import (
+from lolbot.db import (
     SCHEMA_VERSION,
     DatabaseError,
     DiscordIdAlreadyExists,

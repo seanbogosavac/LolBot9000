@@ -1,5 +1,5 @@
 import discord
-from config import QUEUE_NAMES
+from lolbot.settings import QUEUE_NAMES
 
 
 def generate_kda_message(player_info, match_data) -> str:

@@ -1,8 +1,8 @@
 import pytest
 
-import bot.commands as commands
-from api import RiotAPIError
-from bot.exceptions import NoPlayerMentioned, UnknownPlayer
+import lolbot.bot.commands as commands
+from lolbot.api import RiotAPIError
+from lolbot.bot.exceptions import NoPlayerMentioned, UnknownPlayer
 from tests.conftest import (
     DISCORD_MAXIME,
     DISCORD_SEAN,
@@ -123,13 +123,13 @@ class TestRosterCommands:
         assert RIOT_NAME_SEAN in out
         assert roster.get("Sean")["riot_name"] == RIOT_NAME_SEAN
 
-    def test_players_falls_back_to_the_puuid_when_riot_is_unreachable(self, roster, fake_riot, monkeypatch, ctx):
+    def test_players_falls_back_to_the_puuid_when_riot_is_unreachable(self, roster, fake_riot, monkeypatch, ctx, riot_client):
         roster.add("Sean", DISCORD_SEAN, PUUID_SEAN)
 
         def unavailable(puuid):
             raise RiotAPIError("unreachable")
 
-        monkeypatch.setattr(commands.riot_client, "get_riot_id_by_puuid", unavailable)
+        monkeypatch.setattr(riot_client, "get_riot_id_by_puuid", unavailable)
         out = call(commands.listplayers, ctx())[0]
         assert f"`{PUUID_SEAN[:16]}…`" in out
 
@@ -161,17 +161,17 @@ class TestStatCommands:
     def test_leaderboard_says_so_when_nobody_is_registered(self, roster, ctx):
         assert "no player data" in call(commands.leaderboard, ctx())[0]
 
-    def test_leaderboard_survives_a_riot_api_failure(self, seeded_roster, monkeypatch, ctx):
-        from api import RiotAPIError
+    def test_leaderboard_survives_a_riot_api_failure(self, seeded_roster, monkeypatch, ctx, riot_client):
+        from lolbot.api import RiotAPIError
 
         def failing(puuid):
             raise RiotAPIError("boom")
 
-        monkeypatch.setattr(commands.riot_client, "get_player_info", failing)
+        monkeypatch.setattr(riot_client, "get_player_info", failing)
         out = call(commands.leaderboard, ctx())[0]
         assert "Unranked" in out and "Maxime" in out
 
-    def test_lastgame_posts_the_kda_message_and_embed(self, seeded_roster, monkeypatch, ctx):
+    def test_lastgame_posts_the_kda_message_and_embed(self, seeded_roster, monkeypatch, ctx, riot_client):
         match = {
             "gameType": 420,
             "duration": "27:04",
@@ -182,8 +182,8 @@ class TestStatCommands:
                  "win": False, "cs": 40, "gold": 9000},
             ],
         }
-        monkeypatch.setattr(commands.riot_client, "get_last_match_id", lambda puuid: "EUW_1")
-        monkeypatch.setattr(commands.riot_client, "get_match_data", lambda match_id: match)
+        monkeypatch.setattr(riot_client, "get_last_match_id", lambda puuid: "EUW_1")
+        monkeypatch.setattr(riot_client, "get_match_data", lambda match_id: match)
 
         sent = []
 
@@ -199,13 +199,13 @@ class TestStatCommands:
         assert "Sean a retourné" in message  # KDA 9.5 -> the spicy one
         assert embed.title == "Dernier match de Sean"
 
-    def test_lastgame_reports_a_riot_api_failure(self, seeded_roster, monkeypatch, ctx):
-        from api import RiotAPIError
+    def test_lastgame_reports_a_riot_api_failure(self, seeded_roster, monkeypatch, ctx, riot_client):
+        from lolbot.api import RiotAPIError
 
         def failing(puuid):
             raise RiotAPIError("boom")
 
-        monkeypatch.setattr(commands.riot_client, "get_last_match_id", failing)
+        monkeypatch.setattr(riot_client, "get_last_match_id", failing)
         assert "Impossible de récupérer les données" in call(commands.lastgame, ctx(), "sean")[0]
 
 

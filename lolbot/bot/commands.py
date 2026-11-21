@@ -1,9 +1,9 @@
 import logging
 import re
 
-from api import PlayerStats, RiotAPIError
-from config import riot_client
-from db import PlayerInfos
+from lolbot import services
+from lolbot.api import PlayerStats, RiotAPIError
+from lolbot.db import PlayerInfos
 
 from .api_worker import run_blocking
 from .bot_instance import bot
@@ -48,7 +48,7 @@ async def lol(ctx, target=None):
         mention = f"<@{int(player['discord_id'])}>"
 
         try:
-            info: PlayerStats = await run_blocking(riot_client.get_player_info, player["puuid"])
+            info: PlayerStats = await run_blocking(services.get_riot_client().get_player_info, player["puuid"])
             rank, winrate, streak = info.get("rank", "Unranked"), info.get("winrate", 0), info.get("streak", 0)
 
             if rank == "Unranked":
@@ -108,7 +108,7 @@ async def leaderboard(ctx):
     stats = []
     for player in roster:
         try:
-            info = await run_blocking(riot_client.get_player_info, player["puuid"])
+            info = await run_blocking(services.get_riot_client().get_player_info, player["puuid"])
             stats.append({"player": player, "rank": info.get("rank", "Unranked"), "winrate": info.get("winrate", 0)})
         except Exception as e:
             logger.warning("Failed to fetch stats for %s: %s", player["name"], e)
@@ -141,8 +141,8 @@ async def lastgame(ctx, target=None):
         player: PlayerInfos = await find_targeted_player(ctx, target)
 
         try:
-            last_match_id = await run_blocking(riot_client.get_last_match_id, player["puuid"])
-            match_data = await run_blocking(riot_client.get_match_data, last_match_id)
+            last_match_id = await run_blocking(services.get_riot_client().get_last_match_id, player["puuid"])
+            match_data = await run_blocking(services.get_riot_client().get_match_data, last_match_id)
             message, embed = generate_match_info_response(player, match_data)
             await ctx.send(content=message, embed=embed)
         except RiotAPIError as e:
