@@ -2,8 +2,13 @@ name: Deploy
 
 # Runs on a self-hosted runner on the homelab host `schroeder`, which has a
 # local clone of this repo at /home/snoopy/LolBot9000. On every push to
-# `master` it runs the pytest suite as a gate, then rebuilds the image and
+# `master` it first computes the next semantic version (a `vMAJOR.MINOR.PATCH`
+# git tag), then runs the pytest suite as a gate, rebuilds the image and
 # recreates the `lolbot` container.
+#
+# Choosing the bump: put `[major]` or `[minor]` in the PR title (it ends up in
+# the merge commit message); otherwise the patch number is incremented. A
+# manual dispatch picks the bump from a dropdown instead.
 #
 # SECURITY: this repo is public. A self-hosted runner on a public repo must
 # NEVER be triggered by `pull_request` (fork PRs could run arbitrary code on
@@ -13,14 +18,74 @@ on:
   push:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      bump:
+        description: Version part to increment
+        type: choice
+        options: [patch, minor, major]
+        default: patch
 
 concurrency:
   group: deploy-LolBot9000
   cancel-in-progress: false
 
 jobs:
+  # Runs on a GitHub-hosted runner: only the deploy itself touches the homelab.
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compute and tag the next version
+        id: next
+        env:
+          INPUT_BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          # Re-running a deploy of an already released commit keeps its version.
+          existing=$(git tag --points-at "$GITHUB_SHA" --list 'v[0-9]*.[0-9]*.[0-9]*' | head -1)
+          if [ -n "$existing" ]; then
+            echo "version=${existing#v}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          bump="${INPUT_BUMP:-}"
+          if [ -z "$bump" ]; then
+            message=$(git log -1 --format=%B "$GITHUB_SHA")
+            if echo "$message" | grep -qiF '[major]'; then bump=major
+            elif echo "$message" | grep -qiF '[minor]'; then bump=minor
+            else bump=patch
+            fi
+          fi
+
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+          IFS=. read -r major minor patch <<< "${latest#v}"
+          major=${major:-0}; minor=${minor:-0}; patch=${patch:-0}
+          case "$bump" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            *) patch=$((patch + 1)) ;;
+          esac
+          version="$major.$minor.$patch"
+
+          git tag "v$version" "$GITHUB_SHA"
+          git push origin "v$version"
+          echo "Released v$version ($bump bump from ${latest:-none})"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   deploy:
+    needs: version
     runs-on: [self-hosted, schroeder, lolbot]
     steps:
+      # docker-compose.yml bakes these into the image (see lolbot/version.py).
       - name: Deploy LolBot9000
+        env:
+          APP_VERSION: ${{ needs.version.outputs.version }}
+          APP_COMMIT: ${{ github.sha }}
         run: /home/snoopy/bin/deploy-bot.sh LolBot9000 master

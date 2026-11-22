@@ -4,6 +4,7 @@ import re
 from lolbot import services
 from lolbot.api import PlayerStats, RiotAPIError
 from lolbot.db import PlayerInfos
+from lolbot.version import version_string
 
 from .api_worker import run_blocking
 from .bot_instance import bot
@@ -244,6 +245,12 @@ async def removeplayer(ctx, *args: str):
     except Exception as e:
         logger.error("Error removing player %s: %s", name, e, exc_info=True)
         await ctx.send("G beugé chef")
+
+
+@bot.command(name="version")
+async def show_version(ctx):
+    logger.info("Command !version invoked by %s", ctx.author)
+    await ctx.send(f"Je tourne en version **{version_string()}**.")
 
 
 def _riot_display(player: PlayerInfos) -> str:

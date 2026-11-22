@@ -215,3 +215,10 @@ class TestDatabaseFailure:
         assert "indisponible" in call(commands.addplayer, ctx(), "Guy", DISCORD_THOMAS, PUUID_THOMAS)[0]
         assert "indisponible" in call(commands.listplayers, ctx())[0]
         assert "indisponible" in call(commands.lol, ctx(), "sean")[0]
+
+
+class TestVersion:
+    def test_the_deployed_version_is_announced(self, ctx, monkeypatch):
+        monkeypatch.setenv("APP_VERSION", "1.2.3")
+        monkeypatch.setenv("APP_COMMIT", "a1b2c3d4e5f6")
+        assert call(commands.show_version, ctx()) == ["Je tourne en version **1.2.3 (a1b2c3d)**."]
