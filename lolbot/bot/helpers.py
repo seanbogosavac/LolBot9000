@@ -35,10 +35,6 @@ def _build_team_block(team, selected_puuids) -> str:
     return "```\n" + "\n".join(lines) + "\n```"
 
 
-def generate_match_embed(player_info, match_data) -> discord.Embed:
-    return generate_group_match_embed([player_info], match_data)
-
-
 def generate_group_match_embed(player_infos, match_data) -> discord.Embed:
     """Build the recap embed for one or several tracked players who shared the same game."""
     puuids = {info["puuid"] for info in player_infos}
@@ -77,7 +73,7 @@ def generate_group_message(player_infos, match_data) -> str:
 
 
 def generate_match_info_response(player_info, match_data) -> tuple[str, discord.Embed]:
-    return generate_kda_message(player_info, match_data), generate_match_embed(player_info, match_data)
+    return generate_kda_message(player_info, match_data), generate_group_match_embed([player_info], match_data)
 
 
 def generate_group_match_info_response(player_infos, match_data) -> tuple[str, discord.Embed]:
