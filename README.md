@@ -89,7 +89,10 @@ To see what is running:
 docker compose exec lolbot python -m lolbot --version   # e.g. "lolbot 1.2.3 (a1b2c3d)"
 ```
 
-or send `!version` in Discord. A manual `docker compose up -d --build` outside the workflow
+or send `!version` in Discord. `!patchnotes` lists the notes of the five latest versions (the
+message of the commit each tag points to, i.e. the merged PR title) and `!patchnotes 1.2.0` shows
+a single one; they are read from the GitHub repository set in `GITHUB_REPO`
+(default `seanbogosavac/LolBot9000`). A manual `docker compose up -d --build` outside the workflow
 reports `dev`. The version is also logged at startup.
 
 The database is the only source of the roster: the old `DISCORD_ID_*` / `RIOT_ID_*` variables
