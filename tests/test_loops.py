@@ -29,8 +29,10 @@ def channel(monkeypatch):
     monkeypatch.setattr(loops, "POST_MATCH_SETTLE_SECONDS", 0)
     monkeypatch.setattr(services, "get_champions", lambda: {157: "Yasuo", 412: "Leona"})
     loops.ongoing_matches.clear()
+    loops.pending_recaps.clear()
     yield fake
     loops.ongoing_matches.clear()
+    loops.pending_recaps.clear()
 
 
 def tick():
@@ -92,6 +94,72 @@ def test_the_recap_is_posted_when_a_game_ends(seeded_roster, channel, monkeypatc
     assert "Sean a retourné" in channel.sent[0][0]
     assert channel.sent[0][1].title == "Dernier match de Sean"
     assert loops.ongoing_matches == {}
+
+
+def _shared_match(sean_wins=True, maxime_wins=True):
+    return {
+        "gameType": 420,
+        "duration": "27:04",
+        "participants": [
+            {"puuid": PUUID_SEAN, "champion": "Yasuo", "kills": 12, "deaths": 2, "assists": 7,
+             "win": sean_wins, "cs": 210, "gold": 15000},
+            {"puuid": PUUID_MAXIME, "champion": "Leona", "kills": 1, "deaths": 9, "assists": 20,
+             "win": maxime_wins, "cs": 40, "gold": 9000},
+        ],
+    }
+
+
+def _end_game(monkeypatch, riot_client, match):
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: (_ for _ in ()).throw(NoOngoingMatch("none")))
+    monkeypatch.setattr(riot_client, "get_last_match_id", lambda puuid: "EUW_1")
+    monkeypatch.setattr(riot_client, "get_match_data", lambda _id: match)
+
+
+def test_players_in_the_same_game_get_a_single_recap(seeded_roster, channel, monkeypatch, riot_client):
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: in_game(puuid))
+    tick()
+    channel.sent.clear()
+
+    _end_game(monkeypatch, riot_client, _shared_match(sean_wins=True, maxime_wins=False))
+    tick()
+    assert len(channel.sent) == 1
+    content, embed = channel.sent[0]
+    assert "Sean a gagné" in content and "Maxime a perdu" in content
+    assert embed.title == "Dernier match de Maxime, Sean" or embed.title == "Dernier match de Sean, Maxime"
+    assert loops.ongoing_matches == {} and loops.pending_recaps == {}
+
+
+def test_the_recap_waits_until_every_player_has_left_the_game(seeded_roster, channel, monkeypatch, riot_client):
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: in_game(puuid))
+    tick()
+    channel.sent.clear()
+
+    still_in = {PUUID_MAXIME}
+
+    def current(puuid):
+        if puuid in still_in:
+            return in_game(puuid)
+        raise NoOngoingMatch("none")
+
+    _end_game(monkeypatch, riot_client, _shared_match())
+    monkeypatch.setattr(riot_client, "get_current_match", current)
+    tick()
+    assert channel.sent == []
+
+    still_in.clear()
+    tick()
+    assert len(channel.sent) == 1
+    assert "Sean a gagné" in channel.sent[0][0] and "Maxime a gagné" in channel.sent[0][0]
+
+
+def test_a_failed_poll_does_not_end_the_game(seeded_roster, channel, monkeypatch, riot_client):
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: in_game(puuid))
+    tick()
+    channel.sent.clear()
+
+    monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: (_ for _ in ()).throw(RiotAPIError("boom")))
+    tick()
+    assert channel.sent == [] and len(loops.ongoing_matches) == 2
 
 
 def test_a_player_added_mid_flight_is_picked_up(roster, channel, monkeypatch, riot_client):
