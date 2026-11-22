@@ -3,6 +3,7 @@ import re
 
 from lolbot import services
 from lolbot.api import PlayerStats, RiotAPIError
+from lolbot.api.github import GitHubError, PatchNote, fetch_patch_note, fetch_patch_notes
 from lolbot.db import PlayerInfos
 from lolbot.version import version_string
 
@@ -251,6 +252,44 @@ async def removeplayer(ctx, *args: str):
 async def show_version(ctx):
     logger.info("Command !version invoked by %s", ctx.author)
     await ctx.send(f"Je tourne en version **{version_string()}**.")
+
+
+DISCORD_MESSAGE_LIMIT = 2000
+PATCH_NOTES_COUNT = 5
+
+
+def _format_patch_note(note: PatchNote, max_length: int) -> str:
+    text = note.notes
+    if len(text) > max_length:
+        text = text[: max_length - 1].rstrip() + "…"
+    return f"**v{note.version}**\n{text}"
+
+
+@bot.command(name="patchnotes", aliases=["patchnote"])
+async def patchnotes(ctx, version=None):
+    logger.info("Command !patchnotes invoked by %s (version: %s)", ctx.author, version)
+    try:
+        if version is not None:
+            note = await run_blocking(fetch_patch_note, version)
+            if note is None:
+                await ctx.send(f"Je connais pas la version **{version}**.")
+                return
+            await ctx.send(_format_patch_note(note, DISCORD_MESSAGE_LIMIT))
+            return
+
+        notes = await run_blocking(fetch_patch_notes, PATCH_NOTES_COUNT)
+        if not notes:
+            await ctx.send("Y'a aucune version publiée pour l'instant.")
+            return
+        header = "📝 **Patch notes**\n\n"
+        overhead = sum(len(_format_patch_note(PatchNote(n.version, ""), 0)) + 2 for n in notes)
+        budget = (DISCORD_MESSAGE_LIMIT - len(header) - overhead) // len(notes)
+        await ctx.send(header + "\n\n".join(_format_patch_note(n, budget) for n in notes))
+    except GitHubError:
+        await ctx.send("Impossible de récupérer les patch notes depuis GitHub.")
+    except Exception as e:
+        logger.error("Error fetching patch notes: %s", e, exc_info=True)
+        await ctx.send("G beugé chef")
 
 
 def _riot_display(player: PlayerInfos) -> str:

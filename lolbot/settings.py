@@ -20,6 +20,9 @@ DISCORD_TOKEN: str | None = os.getenv("DISCORD_TOKEN")
 DISCORD_CHANNEL: int | None = _channel_id()
 RIOT_API_KEY: str | None = os.getenv("RIOT_API_KEY")
 
+# Repository whose version tags `!patchnotes` reads.
+GITHUB_REPO: str = os.getenv("GITHUB_REPO", "seanbogosavac/LolBot9000")
+
 # Players live in SQLite, so the roster can change without redeploying the bot.
 # Set PLAYERS_DB to move the file (docker-compose mounts a volume for it).
 PLAYERS_DB_PATH: Path = Path(os.getenv("PLAYERS_DB", PROJECT_ROOT / "data" / "players.db"))

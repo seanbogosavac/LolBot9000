@@ -222,3 +222,50 @@ class TestVersion:
         monkeypatch.setenv("APP_VERSION", "1.2.3")
         monkeypatch.setenv("APP_COMMIT", "a1b2c3d4e5f6")
         assert call(commands.show_version, ctx()) == ["Je tourne en version **1.2.3 (a1b2c3d)**."]
+
+
+class TestPatchNotes:
+    @pytest.fixture
+    def github(self, monkeypatch):
+        """Fake GitHub: tags come back alphabetically, like the real API."""
+        from lolbot.api import github
+
+        tags = [{"name": n, "commit": {"sha": f"sha-{n}"}} for n in ("v1.10.0", "v1.2.0", "v1.9.0", "nightly")]
+        messages = {
+            "sha-v1.10.0": "Merge pull request #12 from me/feat\n\n[FEAT] Newest",
+            "sha-v1.9.0": "Plain commit",
+            "sha-v1.2.0": "Oldest",
+        }
+
+        def fake_get(path, **params):
+            return tags if path == "tags" else {"commit": {"message": messages[path.split("/")[1]]}}
+
+        monkeypatch.setattr(github, "_get", fake_get)
+
+    def test_the_latest_versions_are_listed_newest_first(self, ctx, github):
+        out = call(commands.patchnotes, ctx())[0]
+        assert out.index("v1.10.0") < out.index("v1.9.0") < out.index("v1.2.0")
+        assert "[FEAT] Newest" in out and "Merge pull request" not in out
+        assert "nightly" not in out
+
+    def test_a_single_version_can_be_requested(self, ctx, github):
+        assert call(commands.patchnotes, ctx(), "v1.9.0") == ["**v1.9.0**\nPlain commit"]
+        assert call(commands.patchnotes, ctx(), "1.9.0") == ["**v1.9.0**\nPlain commit"]
+
+    def test_an_unknown_version_is_reported(self, ctx, github):
+        assert "9.9.9" in call(commands.patchnotes, ctx(), "9.9.9")[0]
+
+    def test_long_notes_stay_within_discord_limits(self, ctx, monkeypatch):
+        from lolbot.api.github import PatchNote
+
+        monkeypatch.setattr(commands, "fetch_patch_notes", lambda n: [PatchNote(f"1.{i}.0", "x" * 3000) for i in range(5)])
+        assert len(call(commands.patchnotes, ctx())[0]) <= 2000
+
+    def test_a_github_outage_is_reported(self, ctx, monkeypatch):
+        from lolbot.api.github import GitHubError
+
+        def down(*args):
+            raise GitHubError("down")
+
+        monkeypatch.setattr(commands, "fetch_patch_notes", down)
+        assert "GitHub" in call(commands.patchnotes, ctx())[0]
