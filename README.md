@@ -75,6 +75,23 @@ docker compose exec lolbot python -m lolbot.manage_players add Maxou 12345678901
 docker compose exec lolbot python -m lolbot.manage_players syncnames
 ```
 
+## Version
+
+Versions are `MAJOR.MINOR.PATCH`, stored as `vX.Y.Z` git tags. Every push to `master` makes the
+deploy workflow tag the next version and bake it (with the commit sha) into the image. The patch
+number is incremented by default; put `[minor]` or `[major]` in the PR title to bump that part
+instead (the merge commit message carries it). A manual run of the workflow offers the same choice
+in a dropdown. Redeploying a commit that already has a tag keeps its version.
+
+To see what is running:
+
+```bash
+docker compose exec lolbot python -m lolbot --version   # e.g. "lolbot 1.2.3 (a1b2c3d)"
+```
+
+or send `!version` in Discord. A manual `docker compose up -d --build` outside the workflow
+reports `dev`. The version is also logged at startup.
+
 The database is the only source of the roster: the old `DISCORD_ID_*` / `RIOT_ID_*` variables
 are no longer read, and a fresh (or wiped) `players-db` volume starts empty. Re-register the
 players with `!addplayer`, or with `python -m lolbot.manage_players add` straight from the host.

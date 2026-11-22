@@ -1,7 +1,12 @@
 services:
   lolbot:
     container_name: lolbot
-    build: .
+    build:
+      context: .
+      args:
+        # Set by the deploy workflow; "dev" for a manual build.
+        APP_VERSION: ${APP_VERSION:-dev}
+        APP_COMMIT: ${APP_COMMIT:-unknown}
     image: lolbot9000
     labels:
       glance.name: Lolbot9000
