@@ -43,13 +43,13 @@ def in_game(puuid):
     return {"gameId": 42, "gameType": 420, "players": [puuid, "teammate"], "champions": [157, 412]}
 
 
-def test_a_fresh_game_is_announced_once_per_player(seeded_roster, channel, monkeypatch, riot_client):
+def test_players_starting_the_same_game_get_a_single_announcement(seeded_roster, channel, monkeypatch, riot_client):
     monkeypatch.setattr(riot_client, "get_current_match", lambda puuid: in_game(puuid))
     tick()
     tick()
-    assert len(channel.sent) == 2
-    assert "Maxime" in channel.sent[0][0]
-    assert "Sean" in channel.sent[1][0] and "Yasuo" in channel.sent[1][0]
+    assert len(channel.sent) == 1
+    content = channel.sent[0][0]
+    assert "Maxime" in content and "Sean" in content and "Yasuo" in content
 
 
 def test_only_the_announced_player_is_reported(seeded_roster, channel, monkeypatch, riot_client):
@@ -126,6 +126,8 @@ def test_players_in_the_same_game_get_a_single_recap(seeded_roster, channel, mon
     content, embed = channel.sent[0]
     assert "Sean a gagné" in content and "Maxime a perdu" in content
     assert embed.title == "Dernier match de Maxime, Sean" or embed.title == "Dernier match de Sean, Maxime"
+    assert "`M` Maxime" in embed.description and "`S` Sean" in embed.description
+    assert "M Leona" in embed.fields[1].value and "S Yasuo" in embed.fields[0].value
     assert loops.ongoing_matches == {} and loops.pending_recaps == {}
 
 

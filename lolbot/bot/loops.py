@@ -34,11 +34,39 @@ GAME_TYPE_MESSAGES = {
     2400: lambda mention, champ: f"{mention} part en ARAM tout chaotique avec **{champ}**",
 }
 
+# Same messages for several players starting the same game: (names, names with champions).
+GROUP_GAME_TYPE_MESSAGES = {
+    400: lambda names, champs: f"{champs} remettent les crampons pour une nouvelle game",
+    420: lambda names, champs: f"Omg {champs} partent en ranked ensemble ! Tout pour les e-points",
+    430: lambda names, champs: f"{names} ont lancé une normale classique vanille #aucuneDraftAucunFun. Je vais même pas dire sur quels champs vous êtes pour la peine...",
+    450: lambda names, champs: f"{champs} veulent chill et partent en ARAM",
+    900: lambda names, champs: f"{names} jouent au mode clash... (Qui fait ça?)",
+    2400: lambda names, champs: f"{champs} partent en ARAM tout chaotique",
+}
+
+
+def _mention(player_info: PlayerInfos) -> str:
+    return "OMG OMG @everyone Yannis" if player_info["name"] == "Yannis" else player_info["name"]
+
+
+def _champion(player_info: PlayerInfos, match_data: OngoingMatch) -> str:
+    idx = match_data["players"].index(player_info["puuid"])
+    return services.get_champions().get(match_data["champions"][idx], "un champion inconnu")
+
+
+def generate_group_in_game_message(entries: list[tuple[PlayerInfos, OngoingMatch]]) -> str:
+    """One announcement for every tracked player who just started the same game."""
+    if len(entries) == 1:
+        return generate_in_game_message(*entries[0])
+    names = ", ".join(_mention(p) for p, _ in entries)
+    champs = ", ".join(f"{_mention(p)} (**{_champion(p, m)}**)" for p, m in entries)
+    builder = GROUP_GAME_TYPE_MESSAGES.get(entries[0][1].get("gameType", ""))
+    return builder(names, champs) if builder else f"{names} ont lancé une game non détectée par le système (blip-bloup le robot à un problème)"
+
 
 def generate_in_game_message(player_info: PlayerInfos, match_data: OngoingMatch) -> str:
-    idx = match_data["players"].index(player_info["puuid"])
-    champion = services.get_champions().get(match_data["champions"][idx], "un champion inconnu")
-    mention = "OMG OMG @everyone Yannis" if player_info["name"] == "Yannis" else player_info["name"]
+    champion = _champion(player_info, match_data)
+    mention = _mention(player_info)
     game_type = match_data.get("gameType", "")
     builder = GAME_TYPE_MESSAGES.get(game_type)
     return builder(mention, champion) if builder else f"{mention} a lancé une game non détectée par le système (blip-bloup le robot à un problème)"
@@ -75,6 +103,9 @@ async def check_players_in_game() -> None:
     for stale in [puuid for puuid in ongoing_matches if puuid not in roster_puuids]:
         ongoing_matches.pop(stale)
 
+    # Players who start the same game during this pass are announced together.
+    new_games: dict[int, list[tuple[PlayerInfos, OngoingMatch]]] = {}
+
     for player_info in roster:
         player_name = player_info["name"]
         puuid = player_info["puuid"]
@@ -94,12 +125,15 @@ async def check_players_in_game() -> None:
         if current_match:
             if puuid not in ongoing_matches:
                 ongoing_matches[puuid] = current_match["gameId"] if current_match["gameType"] in GAME_TYPE_MESSAGES else 0
-                await channel.send(generate_in_game_message(player_info, current_match))
-                logger.info("Sent in-game notification for %s (gameId: %s)", player_name, current_match["gameId"])
+                new_games.setdefault(current_match["gameId"], []).append((player_info, current_match))
         elif puuid in ongoing_matches:
             match_id = ongoing_matches.pop(puuid)
             if match_id != 0:
                 pending_recaps.setdefault(match_id, []).append(player_info)
+
+    for game_id, entries in new_games.items():
+        await channel.send(generate_group_in_game_message(entries))
+        logger.info("Sent in-game notification for %s (gameId: %s)", ", ".join(p["name"] for p, _ in entries), game_id)
 
     # A match is recapped once none of the tracked players is still in it.
     still_running = set(ongoing_matches.values())
