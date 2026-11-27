@@ -24,20 +24,38 @@ def generate_kda_message(player_info, match_data) -> str:
             return f"{name} a perdu sa dernière game\n"
 
 
-def _build_team_block(team, selected_puuids) -> str:
-    header = f"{'':2}{'Champion':<12} {'K/D/A':^9} {'CS':^6} {'Gold':^7}"
-    separator = f"{'':2}{'-'*12} {'-'*9} {'-'*6} {'-'*7}"
+def _player_markers(player_infos) -> dict[str, str]:
+    """Map each puuid to a marker: `*` for a lone player, else the shortest unique name prefix."""
+    if len(player_infos) == 1:
+        return {player_infos[0]["puuid"]: "*"}
+    markers = {}
+    for info in player_infos:
+        name = info["name"].upper()
+        length = 1
+        while length < len(name) and any(
+            other is not info and other["name"].upper().startswith(name[:length]) for other in player_infos
+        ):
+            length += 1
+        markers[info["puuid"]] = name[:length]
+    return markers
+
+
+def _build_team_block(team, markers) -> str:
+    width = max(len(m) for m in markers.values())
+    header = f"{'':{width + 1}}{'Champion':<12} {'K/D/A':^9} {'CS':^6} {'Gold':^7}"
+    separator = f"{'':{width + 1}}{'-'*12} {'-'*9} {'-'*6} {'-'*7}"
     lines = [header, separator]
     for p in team:
-        marker = "*" if p["puuid"] in selected_puuids else " "
+        marker = markers.get(p["puuid"], "")
         kda = f"{p['kills']}/{p['deaths']}/{p['assists']}"
-        lines.append(f"{marker} {p['champion']:<12} {kda:^9} {p['cs']:^6} {p['gold']:^7}")
+        lines.append(f"{marker:<{width}} {p['champion']:<12} {kda:^9} {p['cs']:^6} {p['gold']:^7}")
     return "```\n" + "\n".join(lines) + "\n```"
 
 
 def generate_group_match_embed(player_infos, match_data) -> discord.Embed:
     """Build the recap embed for one or several tracked players who shared the same game."""
-    puuids = {info["puuid"] for info in player_infos}
+    markers = _player_markers(player_infos)
+    puuids = set(markers)
     participants = match_data["participants"]
     results = [next(p for p in participants if p["puuid"] == puuid)["win"] for puuid in puuids]
 
@@ -53,13 +71,17 @@ def generate_group_match_embed(player_infos, match_data) -> discord.Embed:
         color = discord.Color.gold()
 
     names = ", ".join(info["name"].capitalize() for info in player_infos)
+    description = f"**{queue_name}** | **{match_data['duration']}**"
+    if len(player_infos) > 1:
+        legend = " · ".join(f"`{markers[info['puuid']]}` {info['name'].capitalize()}" for info in player_infos)
+        description += f"\n{legend}"
     embed = discord.Embed(
         title=f"Dernier match de {names}",
-        description=f"**{queue_name}** | **{match_data['duration']}**",
+        description=description,
         color=color,
     )
-    embed.add_field(name="✅ Équipe gagnante", value=_build_team_block(winners, puuids) or "Aucun", inline=False)
-    embed.add_field(name="❌ Équipe perdante", value=_build_team_block(losers, puuids) or "Aucun", inline=False)
+    embed.add_field(name="✅ Équipe gagnante", value=_build_team_block(winners, markers) or "Aucun", inline=False)
+    embed.add_field(name="❌ Équipe perdante", value=_build_team_block(losers, markers) or "Aucun", inline=False)
     return embed
 
 
