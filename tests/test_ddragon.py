@@ -35,5 +35,5 @@ def test_champion_data_falls_back_to_empty_when_ddragon_is_down(monkeypatch):
 
 
 def test_champions_are_mapped_by_numeric_id(monkeypatch):
-    monkeypatch.setattr(ddragon, "fetch_champions_data", lambda: {"data": {"Ahri": {"key": "103"}, "Leona": {"key": "89"}}})
-    assert champions_by_id() == {103: "Ahri", 89: "Leona"}
+    monkeypatch.setattr(ddragon, "fetch_champions_data", lambda: {"data": {"Ahri": {"key": "103", "name": "Ahri"}, "XinZhao": {"key": "5", "name": "Xin Zhao"}}})
+    assert champions_by_id() == {103: "Ahri", 5: "Xin Zhao"}

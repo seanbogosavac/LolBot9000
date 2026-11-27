@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 __all__ = ["PlayerStats", "Participant", "Match", "OngoingMatch"]
 
@@ -11,7 +11,8 @@ class PlayerStats(TypedDict):
 
 class Participant(TypedDict):
     puuid: str
-    champion: str
+    champion: str  # Riot's internal name (e.g. "XinZhao")
+    championId: NotRequired[int]  # used to look up the display name ("Xin Zhao") from Data Dragon
     kills: int
     deaths: int
     assists: int
