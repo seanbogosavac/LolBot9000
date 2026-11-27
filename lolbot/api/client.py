@@ -248,6 +248,7 @@ class RiotClient:
             {
                 "puuid": p.get("puuid", "Unknown"),
                 "champion": p.get("championName", "Unknown"),
+                "championId": p.get("championId", 0),
                 "kills": p.get("kills", 0),
                 "deaths": p.get("deaths", 0),
                 "assists": p.get("assists", 0),

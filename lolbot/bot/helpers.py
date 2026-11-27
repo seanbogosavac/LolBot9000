@@ -1,4 +1,5 @@
 import discord
+from lolbot import services
 from lolbot.settings import QUEUE_NAMES
 
 
@@ -40,15 +41,22 @@ def _player_markers(player_infos) -> dict[str, str]:
     return markers
 
 
+def _champion_name(participant) -> str:
+    champion_id = participant.get("championId")
+    if champion_id is None:
+        return participant["champion"]
+    return services.get_champions().get(champion_id, participant["champion"])
+
+
 def _build_team_block(team, markers) -> str:
     width = max(len(m) for m in markers.values())
-    header = f"{'':{width + 1}}{'Champion':<12} {'K/D/A':^9} {'CS':^6} {'Gold':^7}"
-    separator = f"{'':{width + 1}}{'-'*12} {'-'*9} {'-'*6} {'-'*7}"
+    header = f"{'':{width + 1}}{'Champion':<14} {'K/D/A':^9} {'CS':^6} {'Gold':^7}"
+    separator = f"{'':{width + 1}}{'-'*14} {'-'*9} {'-'*6} {'-'*7}"
     lines = [header, separator]
     for p in team:
         marker = markers.get(p["puuid"], "")
         kda = f"{p['kills']}/{p['deaths']}/{p['assists']}"
-        lines.append(f"{marker:<{width}} {p['champion']:<12} {kda:^9} {p['cs']:^6} {p['gold']:^7}")
+        lines.append(f"{marker:<{width}} {_champion_name(p):<14} {kda:^9} {p['cs']:^6} {p['gold']:^7}")
     return "```\n" + "\n".join(lines) + "\n```"
 
 

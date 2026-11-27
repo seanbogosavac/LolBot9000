@@ -25,4 +25,4 @@ def fetch_champions_data() -> dict:
 
 def champions_by_id() -> dict[int, str]:
     """Map champion ids to their names, as published for the latest patch."""
-    return {int(info["key"]): name for name, info in fetch_champions_data()["data"].items()}
+    return {int(info["key"]): info.get("name", key) for key, info in fetch_champions_data()["data"].items()}
